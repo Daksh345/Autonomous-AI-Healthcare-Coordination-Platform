@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MediFlow AI - Autonomous Multi-Agent Healthcare Coordination Platform. From symptoms to specialist, coordinated intelligently by autonomous AI agents.">
+  <title>MediFlow AI - Autonomous Healthcare Coordination Platform</title>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Background Blobs -->
+    <div class="bg-blob-1"></div>
+    <div class="bg-blob-2"></div>
+
+    <!-- Global Header -->
+    <header>
+      <a href="#" class="logo-section" onclick="switchView('home')">
+        <i class="fa-solid fa-microchip-brain"></i>
+        <span class="logo-text">MediFlow AI</span>
+      </a>
+      
+      <nav class="nav-links">
+        <button id="nav-home" class="nav-btn active" onclick="switchView('home')">
+          <i class="fa-solid fa-house"></i> Home
+        </button>
+        <button id="nav-patient" class="nav-btn" onclick="switchView('patient')">
+          <i class="fa-solid fa-user-injured"></i> Patient Portal
+        </button>
+        <button id="nav-doctor" class="nav-btn" onclick="switchView('doctor')">
+          <i class="fa-solid fa-user-doctor"></i> Doctor Portal
+        </button>
+        <button id="nav-architecture" class="nav-btn" onclick="switchView('architecture')">
+          <i class="fa-solid fa-network-wired"></i> AI Architecture
+        </button>
+      </nav>
+      
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <button class="reset-state-btn" onclick="resetAppState()" title="Clear localStorage state and reload">
+          <i class="fa-solid fa-arrows-rotate"></i> Reset App
+        </button>
+        <div class="system-status">
+          <span class="status-dot"></span>
+          <span>5 Agents Online</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main View Content -->
+    <main>
+      
+      <!-- VIEW: HOME / LANDING -->
+      <section id="view-home" class="view-section active">
+        <div class="hero-section">
+          <span class="hero-tagline">Autonomous Multi-Agent System</span>
+          <h1 class="hero-title">Intelligent Healthcare <span>Coordination Platform</span></h1>
+          <p class="hero-desc">
+            MediFlow AI is an AI-powered system that bridges the gap between patient symptoms and specialist care. 
+            Using multiple autonomous agents collaborating in real time, it optimizes the clinical intake, scheduling, 
+            and follow-up prescription journey.
+          </p>
+        </div>
+
+        <div class="role-cards-grid">
+          <!-- Patient Entry Card -->
+          <div class="role-card" onclick="switchView('patient')">
+            <div class="role-icon">
+              <i class="fa-solid fa-hospital-user"></i>
+            </div>
+            <h3>Patient Portal</h3>
+            <p>Describe your symptoms to our intake assistant, receive specialist suggestions, schedule appointments, and review AI-decoded prescriptions.</p>
+            <div class="role-action">
+              <span>Access Patient Portal</span> <i class="fa-solid fa-arrow-right"></i>
+            </div>
+          </div>
+
+          <!-- Doctor Entry Card -->
+          <div class="role-card doctor-card" onclick="switchView('doctor')">
+            <div class="role-icon">
+              <i class="fa-solid fa-stethoscope"></i>
+            </div>
+            <h3>Doctor Portal</h3>
+            <p>Manage appointments, view AI-compiled patient intake reports, adjust status, and upload prescriptions with automated OCR assistance.</p>
+            <div class="role-action">
+              <span>Access Doctor Portal</span> <i class="fa-solid fa-arrow-right"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="features-container">
+          <h2 class="section-title">The Multi-Agent Edge</h2>
+          <div class="features-grid">
+            <div class="feature-box">
+              <i class="fa-solid fa-comments"></i>
+              <h4>Adaptive Intake</h4>
+              <p>Dynamic Symptom Analysis Agent asks specific questions based on details provided, adapting to the user's responses.</p>
+            </div>
+            <div class="feature-box">
+              <i class="fa-solid fa-route"></i>
+              <h4>Specialist Routing</h4>
+              <p>Specialist Routing Agent parses the symptom profiles and coordinates the correct doctor match immediately.</p>
+            </div>
+            <div class="feature-box">
+              <i class="fa-solid fa-calendar-check"></i>
+              <h4>Smart Booking</h4>
+              <p>Appointment Scheduling Agent syncs patient calendar, doctor availability, and books consultation slots dynamically.</p>
+            </div>
+            <div class="feature-box">
+              <i class="fa-solid fa-file-medical"></i>
+              <h4>AI Explanation</h4>
+              <p>Prescription Explanation Agent decodes prescription terminology, explaining usage and side effects in simple language.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: PATIENT PORTAL -->
+      <section id="view-patient" class="view-section">
+        <div class="portal-layout">
+          <!-- Column 1: Chat and Agent Logs -->
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="glass-panel">
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-robot"></i> Symptom Intake Assistant</span>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Symptom Analysis Agent</span>
+              </div>
+              
+              <!-- Quick Tag suggestions to aid patient -->
+              <div class="quick-tags-container">
+                <span style="font-size: 0.8rem; color: var(--color-text-muted); align-self: center; margin-right: 0.5rem;">Quick symptoms:</span>
+                <button class="tag-btn" onclick="injectSymptom('Mild chest pain spreading to my left arm')">Chest Pain</button>
+                <button class="tag-btn" onclick="injectSymptom('Severe headache with sensitivity to light')">Migraine</button>
+                <button class="tag-btn" onclick="injectSymptom('Chronic knee joint pain while walking')">Joint Pain</button>
+                <button class="tag-btn" onclick="injectSymptom('Fever with dry cough and fatigue')">Fever/Cough</button>
+              </div>
+
+              <!-- Chat Container -->
+              <div class="chat-container">
+                <div class="chat-messages" id="intake-chat-messages">
+                  <!-- Injected via JavaScript -->
+                </div>
+                
+                <!-- Live Agent Log feed -->
+                <div class="agent-reasoning-overlay" id="agent-reasoning-logs">
+                  <div class="agent-log-line"><i class="fa-solid fa-spinner fa-spin"></i> Idle. Waiting for patient symptom input...</div>
+                </div>
+
+                <div class="chat-input-area">
+                  <input type="text" id="intake-chat-input" class="chat-input" placeholder="Type symptoms details (e.g. pain location, duration, severity)..." onkeydown="handleIntakeKeyDown(event)">
+                  <button class="send-btn" onclick="sendPatientMessage()">
+                    <i class="fa-solid fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Specialist Matching -->
+          <div>
+            <div class="glass-panel" style="height: 100%;">
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-route"></i> Recommended Specialists</span>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Specialist Routing Agent</span>
+              </div>
+              
+              <!-- Interactive recommendations -->
+              <div id="recommendation-content" class="recommendation-deck">
+                <div class="rec-placeholder">
+                  <i class="fa-solid fa-user-md"></i>
+                  <p>Type symptoms in the intake chat on the left. The Specialist Routing Agent will analyze and recommend doctors here.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prescriptions and Follow-up section -->
+        <div class="prescription-view-split">
+          <!-- Sub-column 1: Active Prescriptions -->
+          <div class="glass-panel">
+            <div class="panel-header">
+              <span class="panel-title"><i class="fa-solid fa-file-prescription"></i> Your Active Prescriptions</span>
+            </div>
+            <div class="meds-list" id="patient-meds-list">
+              <!-- Injected dynamically -->
+            </div>
+          </div>
+
+          <!-- Sub-column 2: AI Explanations & Follow-up Chat -->
+          <div class="glass-panel">
+            <div class="panel-header">
+              <span class="panel-title"><i class="fa-solid fa-brain"></i> AI Prescription Interpreter</span>
+              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Prescription Explanation Agent</span>
+            </div>
+            <div class="explanation-panel-content" id="prescription-interpreter-panel">
+              <div class="explain-empty">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <p>Click "Explain with AI" on any active prescription to receive custom guidelines and ask follow-up questions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: DOCTOR PORTAL -->
+      <section id="view-doctor" class="view-section">
+        <div class="portal-layout">
+          <!-- Column 1: Appointment Queue -->
+          <div class="glass-panel">
+            <div class="panel-header">
+              <span class="panel-title"><i class="fa-solid fa-list-check"></i> Patient Appointment Queue</span>
+              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Appointment Scheduling Agent</span>
+            </div>
+            <div class="appointment-list" id="doc-appointment-queue">
+              <!-- Injected dynamically -->
+            </div>
+          </div>
+
+          <!-- Column 2: Detailed Overview & Treatment -->
+          <div class="glass-panel" style="position: relative;">
+            <!-- Simulating Scanner Overlay -->
+            <div class="ocr-scan-overlay" id="ocr-overlay">
+              <div class="scan-box">
+                <div class="scan-line"></div>
+              </div>
+              <div class="ocr-text">SCANNING PRESCRIPTION IMAGE VIA OCR...</div>
+            </div>
+
+            <div class="panel-header">
+              <span class="panel-title"><i class="fa-solid fa-address-card"></i> Selected Patient Overview</span>
+              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Patient Diagnostic Panel</span>
+            </div>
+            
+            <div id="patient-overview-content" style="height: 100%;">
+              <div class="diag-empty">
+                <i class="fa-solid fa-folder-open"></i>
+                <p>Select a patient from the queue on the left to view symptom reports and prescribe medications.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: AI ARCHITECTURE -->
+      <section id="view-architecture" class="view-section">
+        <div class="architecture-container">
+          <div class="arch-intro">
+            <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">Multi-Agent System Architecture</h2>
+            <p style="color: var(--color-text-muted); margin-bottom: 2rem;">
+              MediFlow AI coordinates clinical operations using five distinct specialized LLM agents. 
+              Hover over each node in the diagram below to inspect the prompts, models, and inputs that coordinate the data flow.
+            </p>
+          </div>
+
+          <div class="diagram-wrapper">
+            <div class="flow-diagram">
+              <!-- Row 1: Patient Input Flow -->
+              <div class="flow-row">
+                <div class="arch-node">
+                  <div class="node-icon"><i class="fa-solid fa-keyboard"></i></div>
+                  <div class="node-title">Patient Input</div>
+                  <div class="node-role">Text Description</div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node agent">
+                  <div class="node-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+                  <div class="node-title">Symptom Analysis Agent</div>
+                  <div class="node-role">Symptom Clarification</div>
+                  
+                  <div class="node-tooltip">
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Underlying Model</div>
+                      <div class="tooltip-text">Gemini 1.5 Flash</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Agent Prompt</div>
+                      <div class="tooltip-text">"You are an intake nurse. Probe the patient's symptoms step-by-step. Ask about duration, severity, and qualifiers. Do not diagnose; compile clear intake logs."</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Outputs</div>
+                      <div class="tooltip-text">Patient Intake Summary JSON</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node agent">
+                  <div class="node-icon"><i class="fa-solid fa-route"></i></div>
+                  <div class="node-title">Specialist Routing Agent</div>
+                  <div class="node-role">Specialist Selection</div>
+                  
+                  <div class="node-tooltip">
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Underlying Model</div>
+                      <div class="tooltip-text">Gemini 1.5 Flash</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Agent Prompt</div>
+                      <div class="tooltip-text">"Analyze the compiled intake logs. Map symptoms to clinical specialties (e.g. Cardiology, Neurology, Orthopedics). Output the matching score and reason."</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Outputs</div>
+                      <div class="tooltip-text">Specialty Code & Reasoning Details</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node agent">
+                  <div class="node-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                  <div class="node-title">Scheduling Agent</div>
+                  <div class="node-role">Appointment Allocator</div>
+                  
+                  <div class="node-tooltip">
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Underlying Model</div>
+                      <div class="tooltip-text">Gemini 1.5 Flash</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Agent Prompt</div>
+                      <div class="tooltip-text">"Coordinate slots based on doctor timetables and patient choice. Schedule and update queue dashboard with active consultation markers."</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Outputs</div>
+                      <div class="tooltip-text">Confirmed Slots and Patient Queue Updates</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Connection arrow down to doctor segment -->
+              <div class="flow-arrow-down"><i class="fa-solid fa-arrow-down-long"></i></div>
+
+              <!-- Row 2: Doctor Prescription Flow -->
+              <div class="flow-row">
+                <div class="arch-node">
+                  <div class="node-icon"><i class="fa-solid fa-laptop-medical"></i></div>
+                  <div class="node-title">Doctor Dashboard</div>
+                  <div class="node-role">Consultation Portal</div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node agent doctor-agent">
+                  <div class="node-icon"><i class="fa-solid fa-prescription-bottle-medical"></i></div>
+                  <div class="node-title">Prescription Agent</div>
+                  <div class="node-role">Explanation Specialist</div>
+                  
+                  <div class="node-tooltip">
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Underlying Model</div>
+                      <div class="tooltip-text">Gemini 1.5 Pro</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Agent Prompt</div>
+                      <div class="tooltip-text">"You are a clinical pharmacologist. Convert technical doctor prescriptions into plain patient terms. Explain administration rules, dangerous food mixtures, and safety milestones."</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Outputs</div>
+                      <div class="tooltip-text">Patient-friendly Instruction Sheet</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node agent doctor-agent">
+                  <div class="node-icon"><i class="fa-solid fa-user-shield"></i></div>
+                  <div class="node-title">Follow-up Assistant</div>
+                  <div class="node-role">Support Chatbot</div>
+                  
+                  <div class="node-tooltip">
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Underlying Model</div>
+                      <div class="tooltip-text">Gemini 1.5 Flash</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Agent Prompt</div>
+                      <div class="tooltip-text">"Respond to patient questions regarding their active medications using the explanation sheet context. Escalate to the doctor if patient complains of toxic side-effects."</div>
+                    </div>
+                    <div class="tooltip-section">
+                      <div class="tooltip-label">Outputs</div>
+                      <div class="tooltip-text">Interactive Clarification Responses</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flow-arrow-right"><i class="fa-solid fa-arrow-right-long"></i></div>
+
+                <div class="arch-node">
+                  <div class="node-icon"><i class="fa-solid fa-circle-check"></i></div>
+                  <div class="node-title">Patient Followed-Up</div>
+                  <div class="node-role">Cycle Completed</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Global Footer -->
+    <footer>
+      <p>&copy; 2026 MediFlow AI Healthcare Coordination Platform. All rights reserved. Powered by Autonomous Multi-Agent Workflows.</p>
+    </footer>
+  </div>
+
+  <!-- INTERACTIVE BOOKING MODAL -->
+  <div class="modal-overlay" id="booking-modal">
+    <div class="modal-content">
+      <button class="modal-close-btn" onclick="closeBookingModal()"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="modal-title" id="booking-modal-title">Book Doctor Appointment</h3>
+      
+      <!-- Date Picker -->
+      <div class="form-group">
+        <label for="booking-date">Choose Date</label>
+        <input type="date" id="booking-date" class="form-input" min="2026-06-05">
+      </div>
+      
+      <!-- Available Slots -->
+      <div class="form-group">
+        <label>Available Slots (Intelligently Checked by Scheduling Agent)</label>
+        <div class="slot-grid">
+          <div class="slot-chip" onclick="selectSlot(this)">09:00 AM</div>
+          <div class="slot-chip" onclick="selectSlot(this)">10:30 AM</div>
+          <div class="slot-chip" onclick="selectSlot(this)">11:45 AM</div>
+          <div class="slot-chip" onclick="selectSlot(this)">02:00 PM</div>
+          <div class="slot-chip" onclick="selectSlot(this)">03:30 PM</div>
+          <div class="slot-chip" onclick="selectSlot(this)">04:45 PM</div>
+        </div>
+      </div>
+
+      <!-- Consultation Method -->
+      <div class="form-group">
+        <label>Consultation Method</label>
+        <div class="method-select">
+          <div class="method-option" onclick="selectMethod(this, 'Video')">
+            <i class="fa-solid fa-video"></i>
+            <span>Video Call</span>
+          </div>
+          <div class="method-option" onclick="selectMethod(this, 'In-Person')">
+            <i class="fa-solid fa-house-chimney-medical"></i>
+            <span>In-Person</span>
+          </div>
+          <div class="method-option" onclick="selectMethod(this, 'Chat')">
+            <i class="fa-solid fa-message"></i>
+            <span>Chat</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Confirm Button -->
+      <button class="book-btn" style="width: 100%;" onclick="confirmAppointment()">
+        Confirm Booking & Route to Queue
+      </button>
+    </div>
+  </div>
+
+  <!-- App Core Logic Script -->
+  <script src="app.js"></script>
+</body>
+</html>
