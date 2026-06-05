@@ -237,7 +237,9 @@ function getCurrentPatientState() {
       intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
       chatHistory: [
         { sender: 'ai', text: `Hello ${user}! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-      ]
+      ],
+      recommendedSpecialty: null,
+      reasoningLogs: []
     };
   }
   return state.patientIntakeStates[user];
@@ -293,6 +295,19 @@ function quickLogin(username) {
 
 function patientLogout() {
   state.currentUser = null;
+
+  // Clear patient-specific logs and recommendations DOM elements immediately on logout
+  clearAgentActivityLogs();
+  const recContainer = document.getElementById('recommendation-content');
+  if (recContainer) {
+    recContainer.innerHTML = `
+      <div class="rec-placeholder">
+        <i class="fa-solid fa-user-md"></i>
+        <p>Type symptoms in the intake chat on the left. The Specialist Routing Agent will analyze and recommend doctors here.</p>
+      </div>
+    `;
+  }
+
   saveAppState();
   renderPatientPortal();
 }
@@ -338,14 +353,18 @@ function resetToDefaults() {
       intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
       chatHistory: [
         { sender: 'ai', text: 'Hello Jane Smith! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-      ]
+      ],
+      recommendedSpecialty: null,
+      reasoningLogs: []
     },
     'David Lee': {
       intakeStage: 0,
       intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
       chatHistory: [
         { sender: 'ai', text: 'Hello David Lee! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-      ]
+      ],
+      recommendedSpecialty: null,
+      reasoningLogs: []
     }
   };
   state.followupChatHistory = {};
@@ -398,7 +417,20 @@ function logAgentActivity(agentName, text, status = 'running') {
     lineClass = 'success';
   } else if (status === 'info') {
     icon = '<i class="fa-solid fa-circle-info"></i>';
+    lineClass = 'info';
+  } else if (status === 'empty') {
+    icon = '';
     lineClass = '';
+  }
+
+  // If there's a logged in patient, store the log in their state
+  if (state.currentUser) {
+    const patientState = getCurrentPatientState();
+    if (!patientState.reasoningLogs) {
+      patientState.reasoningLogs = [];
+    }
+    patientState.reasoningLogs.push({ agentName, text, status, icon, lineClass });
+    saveAppState();
   }
 
   const line = document.createElement('div');
@@ -496,6 +528,7 @@ async function processIntakeResponse(text) {
       getCurrentPatientState().intakeSummary.unifiedSummary = summary;
       getCurrentPatientState().intakeSummary.symptomDescription = summary; // fallback
       getCurrentPatientState().intakeStage = 3;
+      getCurrentPatientState().recommendedSpecialty = specialty;
 
       setTimeout(() => {
         logAgentActivity('Specialist Routing Agent', 'Reviewing symptom profile summaries...', 'running');
@@ -1009,6 +1042,39 @@ function renderPatientPortal() {
   }
 
   renderIntakeChat();
+
+  // Clear or render doctor recommendations
+  const activePatientState = getCurrentPatientState();
+  if (activePatientState.recommendedSpecialty) {
+    renderDoctorsRecommendation(activePatientState.recommendedSpecialty);
+  } else {
+    const recContainer = document.getElementById('recommendation-content');
+    if (recContainer) {
+      recContainer.innerHTML = `
+        <div class="rec-placeholder">
+          <i class="fa-solid fa-user-md"></i>
+          <p>Type symptoms in the intake chat on the left. The Specialist Routing Agent will analyze and recommend doctors here.</p>
+        </div>
+      `;
+    }
+  }
+
+  // Clear or render reasoning logs
+  const logContainer = document.getElementById('agent-reasoning-logs');
+  if (logContainer) {
+    logContainer.innerHTML = '';
+    if (activePatientState.reasoningLogs && activePatientState.reasoningLogs.length > 0) {
+      activePatientState.reasoningLogs.forEach(log => {
+        const line = document.createElement('div');
+        line.className = `agent-log-line ${log.lineClass}`;
+        line.innerHTML = `${log.icon} <strong>[${log.agentName}]</strong> ${log.text}`;
+        logContainer.appendChild(line);
+      });
+    } else {
+      logContainer.innerHTML = `<div class="agent-log-line"><i class="fa-solid fa-spinner fa-spin"></i> Idle. Waiting for patient symptom input...</div>`;
+    }
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
 
   const medsContainer = document.getElementById('patient-meds-list');
   if (!medsContainer) return;
