@@ -1,4 +1,89 @@
-﻿// --- Database & Preloaded Mock Data ---
+// --- Gemini API Configuration ---
+const GEMINI_API_KEY = 'AQ.Ab8RN6LUx8N69vO0RmcyKC6S9oDsKCHWmxZNHhIkpm3WDnT7Ug';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+const INTAKE_SYSTEM_PROMPT = `You are an AI-powered Symptom Intake Nurse for MediFlow AI, a healthcare coordination platform.
+Your role is to gently and professionally gather a patient's medical symptom information through a natural conversation.
+
+Your goals:
+1. Ask about the nature of their symptoms (what, where, how it feels).
+2. Ask about duration (how long they have had it).
+3. Ask about severity (pain scale 1-10 or descriptive severity).
+4. Ask at most 1-2 follow-up clarifying questions if needed.
+
+IMPORTANT RULES:
+- Be warm, empathetic, and professional. You are NOT diagnosing the patient or providing treatment recommendations.
+- Keep responses concise (2-3 sentences max).
+- If the patient mentions life-threatening symptoms (e.g., severe chest pain, sudden numbness or paralysis, extreme shortness of breath), advise them to seek emergency services immediately, but continue the intake flow to collect details if they choose to do so.
+- Once you have enough information (symptoms, duration, and severity), set "done" to true, "specialty" to the recommended specialty, and "summary" to a 1-2 sentence clinical intake summary.
+- Choose the specialty based on the symptoms:
+  * Cardiology: chest pain, heart palpitations, shortness of breath, radiating arm/jaw pain, or cardiac history.
+  * Neurology: severe headaches, migraines, numbness, tingling, tremors, dizziness, spine/brain issues, or nerve pain.
+  * Orthopedics: joint pain, bone fractures, arthritis, muscle strains, ligament tears, shoulder/knee/hip issues.
+  * Dermatology: skin rashes, eczema, severe acne, hives, suspicious moles, hair loss, nail infections.
+  * Pediatrics: infant/child fever, pediatric growth concerns, childhood viral illness, child developmental checks.
+  * Psychiatry: mental health struggles, severe anxiety, depression, mood changes, panic attacks, sleep disorders.
+  * Ophthalmology: sudden vision loss, blurry vision, eye pain, redness, itching, double vision, eye injury.
+  * Gastroenterology: stomach pain, acid reflux, heartburn, persistent nausea, chronic bloating, IBS, bowel changes.
+  * Endocrinology: diabetes management, thyroid nodules, thyroid fatigue, hormonal fluctuations, unexplained weight changes.
+  * ENT: ear infections, sinus pressure, nosebleeds, tonsillitis, throat pain, voice hoarseness, hearing issues.
+  * General Medicine: mild cold, flu, low-grade fever, general body aches, checkups, or general malaise.
+- Never reveal that you are an AI language model; stay in character as the intake nurse.`;
+
+// Call Gemini API with the full multi-turn chat history
+async function callGeminiIntakeAgent(chatHistory) {
+  // Build conversation turns from app chat history (skip the initial AI greeting bubble)
+  const conversationTurns = chatHistory
+    .filter((msg, idx) => !(msg.sender === 'ai' && idx === 0))
+    .map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+  const requestBody = {
+    contents: conversationTurns,
+    systemInstruction: {
+      parts: [{ text: INTAKE_SYSTEM_PROMPT }]
+    },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          done: { type: "BOOLEAN", description: "Set to true when symptoms, duration, and severity are gathered." },
+          reply: { type: "STRING", description: "Your conversational response to the patient." },
+          specialty: { 
+            type: "STRING", 
+            enum: [
+              "Cardiology", "Neurology", "Orthopedics", "Dermatology", "Pediatrics", 
+              "Psychiatry", "Ophthalmology", "Gastroenterology", "Endocrinology", "ENT", 
+              "General Medicine"
+            ], 
+            description: "Recommended medical specialty." 
+          },
+          summary: { type: "STRING", description: "A 1-2 sentence clinical intake summary of the patient's symptoms, duration, and severity." }
+        },
+        required: ["done", "reply"]
+      }
+    }
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData?.error?.message || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+// --- Database & Preloaded Mock Data ---
 const DOCTORS_DB = {
   Cardiology: [
     { id: 'doc-card-1', name: 'Dr. Helen Thorne', specialty: 'Cardiology', hospital: 'City Health Heart Center', rating: '4.9 (182 reviews)', distance: '1.8 miles away', avatar: 'HT' },
@@ -12,7 +97,35 @@ const DOCTORS_DB = {
     { id: 'doc-ortho-1', name: 'Dr. Thomas Warren', specialty: 'Orthopedics', hospital: 'Bone & Joint Surgery Clinic', rating: '4.8 (210 reviews)', distance: '2.1 miles away', avatar: 'TW' },
     { id: 'doc-ortho-2', name: 'Dr. Cynthia Diaz', specialty: 'Orthopedics', hospital: 'Sports Medicine & Joint Care', rating: '4.6 (115 reviews)', distance: '5.0 miles away', avatar: 'CD' }
   ],
-  General: [
+  Dermatology: [
+    { id: 'doc-derm-1', name: 'Dr. Lisa Ray', specialty: 'Dermatology', hospital: 'Skin & Laser Center', rating: '4.9 (120 reviews)', distance: '1.5 miles away', avatar: 'LR' },
+    { id: 'doc-derm-2', name: 'Dr. Jordan Cooper', specialty: 'Dermatology', hospital: 'Metro Skin Care Clinic', rating: '4.8 (85 reviews)', distance: '3.2 miles away', avatar: 'JC' }
+  ],
+  Pediatrics: [
+    { id: 'doc-ped-1', name: 'Dr. Emily Watson', specialty: 'Pediatrics', hospital: "Children's Health Hospital", rating: '4.9 (240 reviews)', distance: '2.2 miles away', avatar: 'EW' },
+    { id: 'doc-ped-2', name: 'Dr. Ryan Chen', specialty: 'Pediatrics', hospital: 'Happy Kids Pediatric Care', rating: '4.7 (104 reviews)', distance: '4.5 miles away', avatar: 'RC' }
+  ],
+  Psychiatry: [
+    { id: 'doc-psych-1', name: 'Dr. Clara Oswald', specialty: 'Psychiatry', hospital: 'Mind & Behavioral Wellness', rating: '4.8 (90 reviews)', distance: '1.9 miles away', avatar: 'CO' },
+    { id: 'doc-psych-2', name: 'Dr. David Tennant', specialty: 'Psychiatry', hospital: 'Cognitive Care Center', rating: '4.9 (156 reviews)', distance: '3.0 miles away', avatar: 'DT' }
+  ],
+  Ophthalmology: [
+    { id: 'doc-eye-1', name: 'Dr. Fiona Gallagher', specialty: 'Ophthalmology', hospital: 'City Eye Care Center', rating: '4.7 (72 reviews)', distance: '2.7 miles away', avatar: 'FG' },
+    { id: 'doc-eye-2', name: 'Dr. Henry Wu', specialty: 'Ophthalmology', hospital: 'Advanced Vision Clinic', rating: '4.8 (112 reviews)', distance: '5.1 miles away', avatar: 'HW' }
+  ],
+  Gastroenterology: [
+    { id: 'doc-gastro-1', name: 'Dr. Sanjeev Gupta', specialty: 'Gastroenterology', hospital: 'Digestive Disease Institute', rating: '4.8 (167 reviews)', distance: '1.6 miles away', avatar: 'SG' },
+    { id: 'doc-gastro-2', name: 'Dr. Melissa Vance', specialty: 'Gastroenterology', hospital: 'Gastro & Liver Care Clinic', rating: '4.6 (98 reviews)', distance: '4.0 miles away', avatar: 'MV' }
+  ],
+  Endocrinology: [
+    { id: 'doc-endo-1', name: 'Dr. Chloe Bennet', specialty: 'Endocrinology', hospital: 'Thyroid & Diabetes Clinic', rating: '4.7 (88 reviews)', distance: '2.0 miles away', avatar: 'CB' },
+    { id: 'doc-endo-2', name: 'Dr. Richard Feynman', specialty: 'Endocrinology', hospital: 'Hormone & Metabolism Center', rating: '4.8 (124 reviews)', distance: '3.8 miles away', avatar: 'RF' }
+  ],
+  ENT: [
+    { id: 'doc-ent-1', name: 'Dr. Arthur Pendragon', specialty: 'ENT', hospital: 'Ear Nose & Throat Associates', rating: '4.8 (192 reviews)', distance: '1.4 miles away', avatar: 'AP' },
+    { id: 'doc-ent-2', name: 'Dr. Gwen Stacy', specialty: 'ENT', hospital: 'Sinus & Allergy Clinic', rating: '4.7 (83 reviews)', distance: '2.9 miles away', avatar: 'GS' }
+  ],
+  'General Medicine': [
     { id: 'doc-gp-1', name: 'Dr. Arthur Pendleton', specialty: 'General Medicine', hospital: 'Central Care Medical Hub', rating: '4.7 (320 reviews)', distance: '1.2 miles away', avatar: 'AP' },
     { id: 'doc-gp-2', name: 'Dr. Evelyn Foster', specialty: 'General Medicine', hospital: 'Community Wellness Center', rating: '4.6 (143 reviews)', distance: '2.8 miles away', avatar: 'EF' }
   ]
@@ -62,6 +175,25 @@ const DEFAULT_PRESCRIPTIONS = [
         { q: 'Why should I avoid grapefruit?', a: 'Grapefruit can increase the concentration of Lisinopril in your blood, making side effects like extreme dizziness or low blood pressure more likely.' }
       ]
     }
+  },
+  {
+    id: 'prsc-502',
+    patientName: 'David Lee',
+    doctorName: 'Dr. Sarah Mitchell',
+    date: '2026-06-06',
+    medName: 'Gabapentin 300mg',
+    dosage: '1 capsule three times daily (morning, afternoon, bedtime)',
+    duration: '14 Days',
+    notes: 'For nerve pain management. May cause drowsiness. Avoid alcohol. Do not stop taking abruptly.',
+    explanation: {
+      purpose: 'An anticonvulsant and analgesic medication used primarily to relieve severe nerve pain.',
+      guidelines: 'Best taken at evenly spaced intervals (three times daily). Administer with food if it causes stomach upset.',
+      precautions: 'May cause severe drowsiness. Do not drive or operate machinery until effects are known. Avoid alcohol.',
+      faqs: [
+        { q: 'Can I take Gabapentin with antacids?', a: 'No. Antacids containing aluminum or magnesium reduce Gabapentin absorption by 20%. Take them at least 2 hours apart.' },
+        { q: 'What should I do if I miss a dose?', a: 'Take as soon as you remember, unless it is close to your next scheduled slot. Never take double doses.' }
+      ]
+    }
   }
 ];
 
@@ -75,23 +207,95 @@ const MOCK_OCR_DATA = {
 // --- App State Management ---
 // Bump this version number whenever a breaking change is made to the state shape.
 // The app will automatically clear stale localStorage so users never see broken data.
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 
 let state = {
   version: STATE_VERSION,
+  currentUser: null,
   appointments: [],
   prescriptions: [],
   selectedAptId: null,
-  intakeStage: 0,
-  intakeSummary: {
-    symptomDescription: '',
-    duration: '',
-    severity: ''
-  },
   activePrescIdInterpreter: null,
-  chatHistory: [],
+  patientIntakeStates: {},
   followupChatHistory: {} // mapped by prescId -> list of messages
 };
+
+// --- Patient Login Logic ---
+const MOCK_PATIENTS_DB = {
+  'jane': { name: 'Jane Smith', password: 'password123', avatar: 'JS' },
+  'david': { name: 'David Lee', password: 'password123', avatar: 'DL' }
+};
+
+function getCurrentPatientState() {
+  const user = state.currentUser || 'Jane Smith';
+  if (!state.patientIntakeStates) {
+    state.patientIntakeStates = {};
+  }
+  if (!state.patientIntakeStates[user]) {
+    state.patientIntakeStates[user] = {
+      intakeStage: 0,
+      intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
+      chatHistory: [
+        { sender: 'ai', text: `Hello ${user}! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]
+    };
+  }
+  return state.patientIntakeStates[user];
+}
+
+function submitPatientLogin() {
+  const usernameInput = document.getElementById('patient-username');
+  const passwordInput = document.getElementById('patient-password');
+  const errorMsgEl = document.getElementById('login-error-msg');
+  
+  if (!usernameInput || !passwordInput || !errorMsgEl) return;
+
+  const username = usernameInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+
+  errorMsgEl.style.display = 'none';
+
+  const patient = MOCK_PATIENTS_DB[username];
+  if (patient && patient.password === password) {
+    state.currentUser = patient.name;
+    const patientMeds = state.prescriptions.filter(p => p.patientName === state.currentUser);
+    if (patientMeds.length > 0) {
+      state.activePrescIdInterpreter = patientMeds[0].id;
+    } else {
+      state.activePrescIdInterpreter = null;
+    }
+    
+    saveAppState();
+    renderPatientPortal();
+    
+    usernameInput.value = '';
+    passwordInput.value = '';
+  } else {
+    errorMsgEl.innerText = 'Invalid username or password. Try using "jane" or "david" with "password123".';
+    errorMsgEl.style.display = 'block';
+  }
+}
+
+function quickLogin(username) {
+  const patient = MOCK_PATIENTS_DB[username];
+  if (patient) {
+    state.currentUser = patient.name;
+    const patientMeds = state.prescriptions.filter(p => p.patientName === state.currentUser);
+    if (patientMeds.length > 0) {
+      state.activePrescIdInterpreter = patientMeds[0].id;
+    } else {
+      state.activePrescIdInterpreter = null;
+    }
+    saveAppState();
+    renderPatientPortal();
+  }
+}
+
+function patientLogout() {
+  state.currentUser = null;
+  saveAppState();
+  renderPatientPortal();
+}
 
 // Load State from LocalStorage or Fallback
 function loadAppState() {
@@ -123,15 +327,27 @@ function saveAppState() {
 
 function resetToDefaults() {
   state.version = STATE_VERSION;
+  state.currentUser = null;
   state.appointments = [...DEFAULT_APPOINTMENTS];
   state.prescriptions = [...DEFAULT_PRESCRIPTIONS];
   state.selectedAptId = state.appointments[0].id;
-  state.intakeStage = 0;
-  state.intakeSummary = { symptomDescription: '', duration: '', severity: '' };
   state.activePrescIdInterpreter = state.prescriptions[0] ? state.prescriptions[0].id : null;
-  state.chatHistory = [
-    { sender: 'ai', text: 'Hello! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
-  ];
+  state.patientIntakeStates = {
+    'Jane Smith': {
+      intakeStage: 0,
+      intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
+      chatHistory: [
+        { sender: 'ai', text: 'Hello Jane Smith! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]
+    },
+    'David Lee': {
+      intakeStage: 0,
+      intakeSummary: { symptomDescription: '', duration: '', severity: '', unifiedSummary: '' },
+      chatHistory: [
+        { sender: 'ai', text: 'Hello David Lee! I am the Symptom Analysis Agent. Please describe what symptoms you are experiencing today in detail.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]
+    }
+  };
   state.followupChatHistory = {};
   saveAppState();
 }
@@ -147,7 +363,7 @@ function switchView(viewName) {
   document.querySelectorAll('.view-section').forEach(view => {
     view.classList.remove('active');
   });
-  
+
   // Show target view
   const targetView = document.getElementById(`view-${viewName}`);
   if (targetView) targetView.classList.add('active');
@@ -173,10 +389,10 @@ function switchView(viewName) {
 function logAgentActivity(agentName, text, status = 'running') {
   const logContainer = document.getElementById('agent-reasoning-logs');
   if (!logContainer) return;
-  
+
   let icon = '<i class="fa-solid fa-spinner fa-spin"></i>';
   let lineClass = 'running';
-  
+
   if (status === 'success') {
     icon = '<i class="fa-solid fa-circle-check"></i>';
     lineClass = 'success';
@@ -184,11 +400,11 @@ function logAgentActivity(agentName, text, status = 'running') {
     icon = '<i class="fa-solid fa-circle-info"></i>';
     lineClass = '';
   }
-  
+
   const line = document.createElement('div');
   line.className = `agent-log-line ${lineClass}`;
   line.innerHTML = `${icon} <strong>[${agentName}]</strong> ${text}`;
-  
+
   logContainer.appendChild(line);
   logContainer.scrollTop = logContainer.scrollHeight;
 }
@@ -216,13 +432,13 @@ function handleIntakeKeyDown(event) {
 function sendPatientMessage() {
   const inputEl = document.getElementById('intake-chat-input');
   if (!inputEl) return;
-  
+
   const text = inputEl.value.trim();
   if (!text) return;
-  
+
   // 1. Add User Message to Chat History
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  state.chatHistory.push({ sender: 'user', text: text, time: time });
+  getCurrentPatientState().chatHistory.push({ sender: 'user', text: text, time: time });
   inputEl.value = '';
   renderIntakeChat();
 
@@ -230,107 +446,86 @@ function sendPatientMessage() {
   processIntakeResponse(text);
 }
 
-function processIntakeResponse(text) {
-  // Show thinking indicator in chat
-  setTimeout(() => {
-    // Show AI typing indicator
-    const typingBubble = document.createElement('div');
-    typingBubble.id = 'chat-typing-bubble';
-    typingBubble.className = 'message ai';
-    typingBubble.innerHTML = `
-      <span class="message-sender">Symptom Agent</span>
-      <div style="display: flex; gap: 4px; padding: 4px 0;">
-        <span class="status-dot" style="animation-delay: 0.1s;"></span>
-        <span class="status-dot" style="animation-delay: 0.2s;"></span>
-        <span class="status-dot" style="animation-delay: 0.3s;"></span>
-      </div>
-    `;
-    document.getElementById('intake-chat-messages').appendChild(typingBubble);
-    const msgsContainer = document.getElementById('intake-chat-messages');
-    msgsContainer.scrollTop = msgsContainer.scrollHeight;
-  }, 300);
+async function processIntakeResponse(text) {
+  // Show AI typing indicator
+  const msgsContainer = document.getElementById('intake-chat-messages');
+  if (!msgsContainer) return;
 
-  setTimeout(() => {
-    // Remove typing indicator
+  const typingBubble = document.createElement('div');
+  typingBubble.id = 'chat-typing-bubble';
+  typingBubble.className = 'message ai';
+  typingBubble.innerHTML = `
+    <span class="message-sender">Symptom Agent</span>
+    <div style="display: flex; gap: 4px; padding: 4px 0;">
+      <span class="status-dot" style="animation-delay: 0.1s;"></span>
+      <span class="status-dot" style="animation-delay: 0.2s;"></span>
+      <span class="status-dot" style="animation-delay: 0.3s;"></span>
+    </div>
+  `;
+  msgsContainer.appendChild(typingBubble);
+  msgsContainer.scrollTop = msgsContainer.scrollHeight;
+
+  // Log activity
+  logAgentActivity('Symptom Analysis Agent', 'Analyzing description: "' + text + '"...', 'running');
+
+  try {
+    // Call Gemini API
+    const responseText = await callGeminiIntakeAgent(getCurrentPatientState().chatHistory);
+    
+    // Remove typing bubble
     const bubble = document.getElementById('chat-typing-bubble');
     if (bubble) bubble.remove();
 
-    let reply = '';
+    // Parse the JSON response
+    const result = JSON.parse(responseText.trim());
+    const reply = result.reply;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    if (state.intakeStage === 0) {
-      // Input symptoms
-      state.intakeSummary.symptomDescription = text;
-      state.intakeStage = 1;
+
+    if (!result.done) {
+      logAgentActivity('Symptom Analysis Agent', 'Semantic descriptors extracted. Probing for details.', 'info');
+      getCurrentPatientState().chatHistory.push({ sender: 'ai', text: reply, time: time });
+      renderIntakeChat();
+      saveAppState();
+    } else {
+      logAgentActivity('Symptom Analysis Agent', 'Intake log compiled successfully.', 'success');
       
-      logAgentActivity('Symptom Analysis Agent', 'Analyzing description: "' + text + '"...', 'running');
-      setTimeout(() => {
-        logAgentActivity('Symptom Analysis Agent', 'Semantic descriptors extracted. Requesting onset duration.', 'info');
-      }, 800);
-      
-      reply = "Thank you for describing your symptoms. To help me coordinate effectively, how long have you been experiencing this (e.g., hours, days, weeks)?";
-      
-    } else if (state.intakeStage === 1) {
-      // Input duration
-      state.intakeSummary.duration = text;
-      state.intakeStage = 2;
-      
-      logAgentActivity('Symptom Analysis Agent', 'Onset cataloged: ' + text, 'running');
-      setTimeout(() => {
-        logAgentActivity('Symptom Analysis Agent', 'Probing severity indicators.', 'info');
-      }, 600);
-      
-      reply = "Got it. On a scale of 1 to 10 (where 10 is the worst pain/discomfort you have felt), how would you rate your severity?";
-      
-    } else if (state.intakeStage === 2) {
-      // Input severity
-      state.intakeSummary.severity = text;
-      state.intakeStage = 3;
-      
-      logAgentActivity('Symptom Analysis Agent', 'Severity registered: ' + text + '/10. Intake log compiled.', 'success');
-      
-      // Specialist Routing trigger
+      const specialty = result.specialty || 'General Medicine';
+      const summary = result.summary || 'Symptoms collected.';
+
+      // Store summary in state
+      getCurrentPatientState().intakeSummary.unifiedSummary = summary;
+      getCurrentPatientState().intakeSummary.symptomDescription = summary; // fallback
+      getCurrentPatientState().intakeStage = 3;
+
       setTimeout(() => {
         logAgentActivity('Specialist Routing Agent', 'Reviewing symptom profile summaries...', 'running');
-      }, 1000);
-      
+      }, 500);
+
       setTimeout(() => {
-        const specialty = determineSpecialty(state.intakeSummary.symptomDescription);
         logAgentActivity('Specialist Routing Agent', `Mapping complete. Recommended Specialty: ${specialty}. Routing available specialists...`, 'success');
-        
-        reply = `Intake complete! The Specialist Routing Agent has reviewed your file and matched your symptoms to <strong>${specialty}</strong>. Please review the recommended doctors on the right and book a time slot.`;
-        
-        state.chatHistory.push({ sender: 'ai', text: reply, time: time });
+
+        getCurrentPatientState().chatHistory.push({ sender: 'ai', text: reply, time: time });
         renderIntakeChat();
-        
+
         // Render recommended doctors
         renderDoctorsRecommendation(specialty);
         saveAppState();
-      }, 2200);
-      
-      return; // Handled asynchronously
-    } else {
-      // Conversation complete, loop back or prompt next steps
-      reply = "Your intake is already compiled. Please select a doctor from the recommendations to book your appointment, or click 'Reset App' to start fresh.";
+      }, 1500);
     }
+  } catch (error) {
+    console.error('Error during symptom intake:', error);
+    // Remove typing bubble if present
+    const bubble = document.getElementById('chat-typing-bubble');
+    if (bubble) bubble.remove();
 
-    state.chatHistory.push({ sender: 'ai', text: reply, time: time });
+    logAgentActivity('Symptom Analysis Agent', 'Error during processing: ' + error.message, 'info');
+
+    // Add a user-friendly error bubble in chat
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const errorReply = `⚠️ Sorry, I encountered a connection issue while analyzing your symptoms. Please ensure you are connected to the internet, check the API key, and try again.`;
+    getCurrentPatientState().chatHistory.push({ sender: 'ai', text: errorReply, time: time });
     renderIntakeChat();
     saveAppState();
-  }, 1800);
-}
-
-// Simple rule-based specialty classifier mimicking Specialist Routing Agent
-function determineSpecialty(desc) {
-  const txt = desc.toLowerCase();
-  if (txt.includes('chest') || txt.includes('heart') || txt.includes('breath') || txt.includes('cardiac') || txt.includes('pulse')) {
-    return 'Cardiology';
-  } else if (txt.includes('head') || txt.includes('migraine') || txt.includes('spine') || txt.includes('brain') || txt.includes('nerve') || txt.includes('dizzy')) {
-    return 'Neurology';
-  } else if (txt.includes('knee') || txt.includes('joint') || txt.includes('bone') || txt.includes('fracture') || txt.includes('shoulder') || txt.includes('ortho')) {
-    return 'Orthopedics';
-  } else {
-    return 'General';
   }
 }
 
@@ -338,9 +533,9 @@ function determineSpecialty(desc) {
 function renderIntakeChat() {
   const container = document.getElementById('intake-chat-messages');
   if (!container) return;
-  
+
   container.innerHTML = '';
-  state.chatHistory.forEach(msg => {
+  getCurrentPatientState().chatHistory.forEach(msg => {
     const bubble = document.createElement('div');
     bubble.className = `message ${msg.sender}`;
     bubble.innerHTML = `
@@ -350,7 +545,7 @@ function renderIntakeChat() {
     `;
     container.appendChild(bubble);
   });
-  
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -358,10 +553,10 @@ function renderIntakeChat() {
 function renderDoctorsRecommendation(specialty) {
   const container = document.getElementById('recommendation-content');
   if (!container) return;
-  
-  const doctors = DOCTORS_DB[specialty] || DOCTORS_DB.General;
+
+  const doctors = DOCTORS_DB[specialty] || DOCTORS_DB['General Medicine'];
   container.innerHTML = '';
-  
+
   doctors.forEach(doc => {
     const card = document.createElement('div');
     card.className = 'doctor-card-rec';
@@ -391,13 +586,13 @@ let activeBookingDoctor = null;
 
 function openBookingModal(docId, docName, specialty) {
   activeBookingDoctor = { id: docId, name: docName, specialty: specialty };
-  
+
   const modal = document.getElementById('booking-modal');
   const title = document.getElementById('booking-modal-title');
-  
+
   if (modal && title) {
     title.innerText = `Book Slot with ${docName}`;
-    
+
     // Set default date to tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -406,11 +601,11 @@ function openBookingModal(docId, docName, specialty) {
       dateInput.value = tomorrow.toISOString().split('T')[0];
       dateInput.min = new Date().toISOString().split('T')[0];
     }
-    
+
     // Clear selections
     document.querySelectorAll('.slot-chip').forEach(c => c.classList.remove('selected'));
     document.querySelectorAll('.method-option').forEach(m => m.classList.remove('selected'));
-    
+
     modal.style.display = 'flex';
   }
 }
@@ -434,11 +629,11 @@ function selectMethod(option, value) {
 
 function confirmAppointment() {
   if (!activeBookingDoctor) return;
-  
+
   const dateVal = document.getElementById('booking-date').value;
   const selectedSlotEl = document.querySelector('.slot-chip.selected');
   const selectedMethodEl = document.querySelector('.method-option.selected');
-  
+
   if (!dateVal) {
     alert('Please choose a consultation date.');
     return;
@@ -451,10 +646,10 @@ function confirmAppointment() {
     alert('Please choose a consultation method.');
     return;
   }
-  
+
   const slotText = selectedSlotEl.innerText;
   const methodText = selectedMethodEl.getAttribute('data-value');
-  
+
   // ✅ CRITICAL FIX: Snapshot the doctor data NOW before closeBookingModal()
   // nullifies activeBookingDoctor. The setTimeout below runs 1500ms later
   // by which point activeBookingDoctor is already null.
@@ -463,19 +658,19 @@ function confirmAppointment() {
     name: activeBookingDoctor.name,
     specialty: activeBookingDoctor.specialty
   };
-  
+
   logAgentActivity('Appointment Scheduling Agent', `Validating slot: ${dateVal} at ${slotText} with ${bookedDoctor.name}...`, 'running');
-  
+
   closeBookingModal(); // safely nullifies activeBookingDoctor — bookedDoctor is unaffected
-  
+
   setTimeout(() => {
     // Generate new Appointment ID
     const newId = 'apt-' + Math.floor(100 + Math.random() * 900);
-    const summary = `Symptoms: ${state.intakeSummary.symptomDescription || 'Not specified'}. Duration: ${state.intakeSummary.duration || 'Not specified'}. Pain scale: ${state.intakeSummary.severity || 'N/A'}/10.`;
-    
+    const summary = getCurrentPatientState().intakeSummary.unifiedSummary || `Symptoms: ${getCurrentPatientState().intakeSummary.symptomDescription || 'Not specified'}. Duration: ${getCurrentPatientState().intakeSummary.duration || 'Not specified'}. Pain scale: ${getCurrentPatientState().intakeSummary.severity || 'N/A'}/10.`;
+
     const newApt = {
       id: newId,
-      patientName: 'Patient (You)',
+      patientName: state.currentUser || 'Patient (You)',
       specialty: bookedDoctor.specialty,   // ✅ uses local snapshot
       doctorName: bookedDoctor.name,       // ✅ uses local snapshot
       symptomSummary: summary,
@@ -484,27 +679,27 @@ function confirmAppointment() {
       method: methodText,
       status: 'Scheduled'
     };
-    
+
     state.appointments.push(newApt);
     state.selectedAptId = newId; // pre-select this appointment in Doctor Portal
-    
+
     logAgentActivity('Appointment Scheduling Agent', `Booking confirmed! Appointment ID: ${newId}. Doctor queue updated.`, 'success');
-    
+
     // Add success message in the intake chat
-    state.chatHistory.push({
+    getCurrentPatientState().chatHistory.push({
       sender: 'ai',
       text: `🎉 Appointment successfully booked with <strong>${bookedDoctor.name}</strong> on ${dateVal} at ${slotText} (${methodText}). Switch to the Doctor Portal to manage the consultation.`,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
-    
+
     renderIntakeChat();
     saveAppState();
-    
+
     // Switch to Doctor Portal so the user immediately sees their new booking in the queue
     setTimeout(() => {
       switchView('doctor');
     }, 800);
-    
+
   }, 1500);
 }
 
@@ -512,21 +707,21 @@ function confirmAppointment() {
 function renderDoctorPortal() {
   const queueContainer = document.getElementById('doc-appointment-queue');
   if (!queueContainer) return;
-  
+
   queueContainer.innerHTML = '';
-  
+
   if (state.appointments.length === 0) {
     queueContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">No active appointments.</div>`;
     renderSelectedPatientOverview(null);
     return;
   }
-  
+
   state.appointments.forEach(apt => {
     const isSelected = apt.id === state.selectedAptId;
     const card = document.createElement('div');
     card.className = `doc-apt-card ${isSelected ? 'selected' : ''}`;
     card.onclick = () => selectDoctorAppointment(apt.id);
-    
+
     card.innerHTML = `
       <div>
         <div class="apt-pat-name">${apt.patientName}</div>
@@ -539,7 +734,7 @@ function renderDoctorPortal() {
     `;
     queueContainer.appendChild(card);
   });
-  
+
   // Render details for current active appointment
   const currentApt = state.appointments.find(a => a.id === state.selectedAptId) || state.appointments[0];
   if (currentApt) {
@@ -568,7 +763,7 @@ function updateAppointmentStatus(id, newStatus) {
 function renderSelectedPatientOverview(apt) {
   const container = document.getElementById('patient-overview-content');
   if (!container) return;
-  
+
   if (!apt) {
     container.innerHTML = `
       <div class="diag-empty">
@@ -578,7 +773,7 @@ function renderSelectedPatientOverview(apt) {
     `;
     return;
   }
-  
+
   // Check if there is an active prescription in state for this patient appointment to show prescription notes
   const patientPresc = state.prescriptions.filter(p => p.patientName === apt.patientName);
   let prescHistoryHTML = '';
@@ -685,21 +880,21 @@ function renderSelectedPatientOverview(apt) {
 function simulateOCRScan() {
   const overlay = document.getElementById('ocr-overlay');
   if (!overlay) return;
-  
+
   overlay.style.display = 'flex';
-  
+
   setTimeout(() => {
     // Fill form fields
     const nameEl = document.getElementById('form-medname');
     const doseEl = document.getElementById('form-dosage');
     const durEl = document.getElementById('form-duration');
     const notesEl = document.getElementById('form-notes');
-    
+
     if (nameEl) nameEl.value = MOCK_OCR_DATA.medName;
     if (doseEl) doseEl.value = MOCK_OCR_DATA.dosage;
     if (durEl) durEl.value = MOCK_OCR_DATA.duration;
     if (notesEl) notesEl.value = MOCK_OCR_DATA.notes;
-    
+
     overlay.style.display = 'none';
   }, 2200);
 }
@@ -708,20 +903,20 @@ function simulateOCRScan() {
 function submitDoctorPrescription() {
   const apt = state.appointments.find(a => a.id === state.selectedAptId);
   if (!apt) return;
-  
+
   const medNameVal = document.getElementById('form-medname').value.trim();
   const dosageVal = document.getElementById('form-dosage').value.trim();
   const durationVal = document.getElementById('form-duration').value.trim();
   const notesVal = document.getElementById('form-notes').value.trim();
-  
+
   if (!medNameVal || !dosageVal) {
     alert('Please enter at least the Medication Name and Dosage directions.');
     return;
   }
-  
+
   // Generate automated AI explanations mimicking Clinical Pharmacologist Agent
   const aiExplanation = generateAIExplanationForMed(medNameVal, notesVal);
-  
+
   const newPrsc = {
     id: 'prsc-' + Math.floor(500 + Math.random() * 500),
     patientName: apt.patientName,
@@ -734,18 +929,18 @@ function submitDoctorPrescription() {
     explanation: aiExplanation,
     isNewForPatient: true // flag to show notification tag in Patient portal
   };
-  
+
   state.prescriptions.push(newPrsc);
-  
+
   // Set as active interpreter
   state.activePrescIdInterpreter = newPrsc.id;
-  
+
   // Mark appointment status as completed automatically
   apt.status = 'Completed';
-  
+
   saveAppState();
   renderDoctorPortal();
-  
+
   alert(`Prescription uploaded successfully for ${apt.patientName}! It is now available in the patient's active records.`);
 }
 
@@ -759,7 +954,7 @@ function generateAIExplanationForMed(medName, doctorNotes) {
     { q: 'Can I stop this medication when I feel better?', a: 'Always consult your practitioner before stopping treatment. Ending regimens early can trigger recurrence.' },
     { q: 'What if I miss a dose?', a: 'Take as soon as you remember, unless it is close to your next scheduled slot. Never take double doses.' }
   ];
-  
+
   if (name.includes('lisinopril') || name.includes('blood pressure')) {
     purpose = "An ACE inhibitor used to lower blood pressure and protect cardiac muscle functions.";
     guidelines = "Take once daily at the same time every morning. Can be taken with or without food.";
@@ -785,32 +980,50 @@ function generateAIExplanationForMed(medName, doctorNotes) {
     guidelines = "Complete the entire course prescribed, even if symptoms clear early. Take with food to reduce stomach cramps.";
     precautions = "May cause mild diarrhea. Check with your doctor if a severe rash or breathing issues develop.";
   }
-  
+
   if (doctorNotes) {
     guidelines += ` Clinician specifically noted: "${doctorNotes}".`;
   }
-  
+
   return { purpose, guidelines, precautions, faqs };
 }
 
 // --- PATIENT: PRESCRIPTIONS VIEW LOGIC ---
 function renderPatientPortal() {
+  const loginViewEl = document.getElementById('patient-login-view');
+  const portalContentEl = document.getElementById('patient-portal-content');
+
+  if (!state.currentUser) {
+    if (loginViewEl) loginViewEl.style.display = 'flex';
+    if (portalContentEl) portalContentEl.style.display = 'none';
+    return;
+  } else {
+    if (loginViewEl) loginViewEl.style.display = 'none';
+    if (portalContentEl) portalContentEl.style.display = 'block';
+
+    // Update profile ribbon
+    const displayNameEl = document.getElementById('patient-display-name');
+    const avatarEl = document.getElementById('patient-avatar-letter');
+    if (displayNameEl) displayNameEl.innerText = state.currentUser;
+    if (avatarEl) avatarEl.innerText = state.currentUser === 'Jane Smith' ? 'JS' : 'DL';
+  }
+
   renderIntakeChat();
-  
+
   const medsContainer = document.getElementById('patient-meds-list');
   if (!medsContainer) return;
-  
+
   medsContainer.innerHTML = '';
-  
+
   // Filter prescriptions for the Patient
-  const patientMeds = state.prescriptions.filter(p => p.patientName === 'Patient (You)' || p.patientName === 'Jane Smith');
-  
+  const patientMeds = state.prescriptions.filter(p => p.patientName === state.currentUser);
+
   if (patientMeds.length === 0) {
     medsContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">No prescriptions on file yet.</div>`;
     renderPrescriptionExplanationPanel(null);
     return;
   }
-  
+
   patientMeds.forEach(med => {
     const isNew = med.isNewForPatient ? 'new-alert' : '';
     const card = document.createElement('div');
@@ -825,8 +1038,8 @@ function renderPatientPortal() {
     `;
     medsContainer.appendChild(card);
   });
-  
-  const currentMed = state.prescriptions.find(p => p.id === state.activePrescIdInterpreter) || patientMeds[0];
+
+  const currentMed = patientMeds.find(p => p.id === state.activePrescIdInterpreter) || patientMeds[0];
   if (currentMed) {
     state.activePrescIdInterpreter = currentMed.id;
     renderPrescriptionExplanationPanel(currentMed);
@@ -837,13 +1050,13 @@ function renderPatientPortal() {
 
 function selectPrescriptionForAI(id) {
   state.activePrescIdInterpreter = id;
-  
+
   // Clear "New" flag when explained
   const med = state.prescriptions.find(m => m.id === id);
   if (med && med.isNewForPatient) {
     delete med.isNewForPatient;
   }
-  
+
   saveAppState();
   renderPatientPortal();
 }
@@ -851,7 +1064,7 @@ function selectPrescriptionForAI(id) {
 function renderPrescriptionExplanationPanel(med) {
   const container = document.getElementById('prescription-interpreter-panel');
   if (!container) return;
-  
+
   if (!med) {
     container.innerHTML = `
       <div class="explain-empty">
@@ -861,14 +1074,14 @@ function renderPrescriptionExplanationPanel(med) {
     `;
     return;
   }
-  
+
   // Initialise chat list for this prescription if empty
   if (!state.followupChatHistory[med.id]) {
     state.followupChatHistory[med.id] = [
       { sender: 'ai', text: `Hi! I am your Follow-Up Assistant. I have read the pharmacological details for **${med.medName}** prescribed by **${med.doctorName}**. You can ask me questions about dosage timings, missed pills, or dietary guidelines here.` }
     ];
   }
-  
+
   const chats = state.followupChatHistory[med.id];
   const chatMessagesHTML = chats.map(msg => `
     <div class="message ${msg.sender}">
@@ -919,40 +1132,38 @@ function renderPrescriptionExplanationPanel(med) {
       </div>
     </div>
   `;
-  
+
   // Scroll follow-up messages
   const chatBox = document.getElementById('follow-up-messages-box');
   if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 }
-
 function handleFollowupKeyDown(event, medId) {
   if (event.key === 'Enter') {
     sendFollowupMessage(medId);
   }
 }
-
 function sendFollowupMessage(medId) {
   const inputEl = document.getElementById('follow-up-input');
   if (!inputEl) return;
-  
+
   const text = inputEl.value.trim();
   if (!text) return;
-  
+
   // Add user chat
   state.followupChatHistory[medId].push({ sender: 'user', text: text });
   inputEl.value = '';
-  
+
   // Re-render chat area partially
   renderPrescriptionExplanationPanel(state.prescriptions.find(p => p.id === medId));
-  
+
   // Simulate Follow-up agent processing
   setTimeout(() => {
     const med = state.prescriptions.find(p => p.id === medId);
     let reply = `Checking details for ${med.medName}... Make sure to keep consistent timetables. If you experience severe symptoms, report immediately to Dr. ${med.doctorName}.`;
-    
+
     // Dynamic answers checking
     const userQuery = text.toLowerCase();
-    
+
     if (userQuery.includes('miss') || userQuery.includes('forget') || userQuery.includes('skipped')) {
       const customFAQ = med.explanation.faqs ? med.explanation.faqs.find(f => f.q.toLowerCase().includes('miss')) : null;
       reply = customFAQ ? customFAQ.a : "If you miss a dose, take it as soon as you remember. However, if it is nearly time for your next capsule, skip it and continue your normal schedule. Never double dose.";
@@ -968,10 +1179,10 @@ function sendFollowupMessage(medId) {
     } else if (userQuery.includes('exercise') || userQuery.includes('work out') || userQuery.includes('driving')) {
       reply = `Since ${med.medName} might trigger moderate sleepiness, avoid driving, operating machinery, or performing high-alert fitness regimes until you know exactly how it affects your focus.`;
     }
-    
+
     state.followupChatHistory[medId].push({ sender: 'ai', text: reply });
     saveAppState();
-    
+
     // Refresh Panel
     renderPrescriptionExplanationPanel(med);
   }, 1200);

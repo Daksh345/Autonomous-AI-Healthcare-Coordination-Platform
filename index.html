@@ -121,86 +121,140 @@
 
       <!-- VIEW: PATIENT PORTAL -->
       <section id="view-patient" class="view-section">
-        <div class="portal-layout">
-          <!-- Column 1: Chat and Agent Logs -->
-          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-            <div class="glass-panel">
-              <div class="panel-header">
-                <span class="panel-title"><i class="fa-solid fa-robot"></i> Symptom Intake Assistant</span>
-                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Symptom Analysis Agent</span>
+        
+        <!-- Patient Login Card -->
+        <div id="patient-login-view" class="login-container">
+          <div class="login-card">
+            <h2 class="login-title">Patient Portal Access</h2>
+            <p class="login-subtitle">Sign in to describe symptoms, request triage, and track appointments.</p>
+            
+            <div id="login-error-msg" class="login-error"></div>
+            
+            <div class="login-form">
+              <div class="login-form-group">
+                <label for="patient-username">Username</label>
+                <input type="text" id="patient-username" class="login-input" placeholder="e.g. jane">
               </div>
               
-              <!-- Quick Tag suggestions to aid patient -->
-              <div class="quick-tags-container">
-                <span style="font-size: 0.8rem; color: var(--color-text-muted); align-self: center; margin-right: 0.5rem;">Quick symptoms:</span>
-                <button class="tag-btn" onclick="injectSymptom('Mild chest pain spreading to my left arm')">Chest Pain</button>
-                <button class="tag-btn" onclick="injectSymptom('Severe headache with sensitivity to light')">Migraine</button>
-                <button class="tag-btn" onclick="injectSymptom('Chronic knee joint pain while walking')">Joint Pain</button>
-                <button class="tag-btn" onclick="injectSymptom('Fever with dry cough and fatigue')">Fever/Cough</button>
+              <div class="login-form-group">
+                <label for="patient-password">Password</label>
+                <input type="password" id="patient-password" class="login-input" placeholder="••••••••">
               </div>
-
-              <!-- Chat Container -->
-              <div class="chat-container">
-                <div class="chat-messages" id="intake-chat-messages">
-                  <!-- Injected via JavaScript -->
-                </div>
-                
-                <!-- Live Agent Log feed -->
-                <div class="agent-reasoning-overlay" id="agent-reasoning-logs">
-                  <div class="agent-log-line"><i class="fa-solid fa-spinner fa-spin"></i> Idle. Waiting for patient symptom input...</div>
-                </div>
-
-                <div class="chat-input-area">
-                  <input type="text" id="intake-chat-input" class="chat-input" placeholder="Type symptoms details (e.g. pain location, duration, severity)..." onkeydown="handleIntakeKeyDown(event)">
-                  <button class="send-btn" onclick="sendPatientMessage()">
-                    <i class="fa-solid fa-paper-plane"></i>
-                  </button>
-                </div>
-              </div>
+              
+              <button class="login-submit-btn" onclick="submitPatientLogin()">Sign In</button>
             </div>
-          </div>
-
-          <!-- Column 2: Specialist Matching -->
-          <div>
-            <div class="glass-panel" style="height: 100%;">
-              <div class="panel-header">
-                <span class="panel-title"><i class="fa-solid fa-route"></i> Recommended Specialists</span>
-                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Specialist Routing Agent</span>
-              </div>
-              
-              <!-- Interactive recommendations -->
-              <div id="recommendation-content" class="recommendation-deck">
-                <div class="rec-placeholder">
-                  <i class="fa-solid fa-user-md"></i>
-                  <p>Type symptoms in the intake chat on the left. The Specialist Routing Agent will analyze and recommend doctors here.</p>
-                </div>
+            
+            <div class="login-quick-options">
+              <h4>Quick Sign In (Prototyping)</h4>
+              <div class="quick-user-buttons">
+                <button class="quick-user-btn" onclick="quickLogin('jane')">
+                  <i class="fa-solid fa-hospital-user"></i> Jane Smith
+                </button>
+                <button class="quick-user-btn" onclick="quickLogin('david')">
+                  <i class="fa-solid fa-hospital-user"></i> David Lee
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Prescriptions and Follow-up section -->
-        <div class="prescription-view-split">
-          <!-- Sub-column 1: Active Prescriptions -->
-          <div class="glass-panel">
-            <div class="panel-header">
-              <span class="panel-title"><i class="fa-solid fa-file-prescription"></i> Your Active Prescriptions</span>
+        <!-- Patient Portal Dashboard (Hidden until logged in) -->
+        <div id="patient-portal-content" style="display: none;">
+          <!-- Active Patient Profile Ribbon -->
+          <div class="patient-profile-header">
+            <div class="patient-profile-info">
+              <div class="patient-profile-avatar" id="patient-avatar-letter">JS</div>
+              <div>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted); display: block; line-height: 1.2;">Patient Profile</span>
+                <strong id="patient-display-name" style="font-size: 1.05rem; color: #fff;">Jane Smith</strong>
+              </div>
             </div>
-            <div class="meds-list" id="patient-meds-list">
-              <!-- Injected dynamically -->
+            <button class="patient-logout-btn" onclick="patientLogout()">
+              <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+            </button>
+          </div>
+
+          <div class="portal-layout">
+            <!-- Column 1: Chat and Agent Logs -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+              <div class="glass-panel">
+                <div class="panel-header">
+                  <span class="panel-title"><i class="fa-solid fa-robot"></i> Symptom Intake Assistant</span>
+                  <span style="font-size: 0.8rem; color: var(--color-text-muted);">Symptom Analysis Agent</span>
+                </div>
+                
+                <!-- Quick Tag suggestions to aid patient -->
+                <div class="quick-tags-container">
+                  <span style="font-size: 0.8rem; color: var(--color-text-muted); align-self: center; margin-right: 0.5rem;">Quick symptoms:</span>
+                  <button class="tag-btn" onclick="injectSymptom('Mild chest pain spreading to my left arm')">Chest Pain</button>
+                  <button class="tag-btn" onclick="injectSymptom('Severe headache with sensitivity to light')">Migraine</button>
+                  <button class="tag-btn" onclick="injectSymptom('Chronic knee joint pain while walking')">Joint Pain</button>
+                  <button class="tag-btn" onclick="injectSymptom('Fever with dry cough and fatigue')">Fever/Cough</button>
+                </div>
+
+                <!-- Chat Container -->
+                <div class="chat-container">
+                  <div class="chat-messages" id="intake-chat-messages">
+                    <!-- Injected via JavaScript -->
+                  </div>
+                  
+                  <!-- Live Agent Log feed -->
+                  <div class="agent-reasoning-overlay" id="agent-reasoning-logs">
+                    <div class="agent-log-line"><i class="fa-solid fa-spinner fa-spin"></i> Idle. Waiting for patient symptom input...</div>
+                  </div>
+
+                  <div class="chat-input-area">
+                    <input type="text" id="intake-chat-input" class="chat-input" placeholder="Type symptoms details (e.g. pain location, duration, severity)..." onkeydown="handleIntakeKeyDown(event)">
+                    <button class="send-btn" onclick="sendPatientMessage()">
+                      <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Column 2: Specialist Matching -->
+            <div>
+              <div class="glass-panel" style="height: 100%;">
+                <div class="panel-header">
+                  <span class="panel-title"><i class="fa-solid fa-route"></i> Recommended Specialists</span>
+                  <span style="font-size: 0.8rem; color: var(--color-text-muted);">Specialist Routing Agent</span>
+                </div>
+                
+                <!-- Interactive recommendations -->
+                <div id="recommendation-content" class="recommendation-deck">
+                  <div class="rec-placeholder">
+                    <i class="fa-solid fa-user-md"></i>
+                    <p>Type symptoms in the intake chat on the left. The Specialist Routing Agent will analyze and recommend doctors here.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Sub-column 2: AI Explanations & Follow-up Chat -->
-          <div class="glass-panel">
-            <div class="panel-header">
-              <span class="panel-title"><i class="fa-solid fa-brain"></i> AI Prescription Interpreter</span>
-              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Prescription Explanation Agent</span>
+          <!-- Prescriptions and Follow-up section -->
+          <div class="prescription-view-split">
+            <!-- Sub-column 1: Active Prescriptions -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-file-prescription"></i> Your Active Prescriptions</span>
+              </div>
+              <div class="meds-list" id="patient-meds-list">
+                <!-- Injected dynamically -->
+              </div>
             </div>
-            <div class="explanation-panel-content" id="prescription-interpreter-panel">
-              <div class="explain-empty">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                <p>Click "Explain with AI" on any active prescription to receive custom guidelines and ask follow-up questions.</p>
+
+            <!-- Sub-column 2: AI Explanations & Follow-up Chat -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-brain"></i> AI Prescription Interpreter</span>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Prescription Explanation Agent</span>
+              </div>
+              <div class="explanation-panel-content" id="prescription-interpreter-panel">
+                <div class="explain-empty">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <p>Click "Explain with AI" on any active prescription to receive custom guidelines and ask follow-up questions.</p>
+                </div>
               </div>
             </div>
           </div>
