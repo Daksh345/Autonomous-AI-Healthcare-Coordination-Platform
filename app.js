@@ -83,6 +83,124 @@ async function callGeminiIntakeAgent(chatHistory) {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
+// --- Gemini Prescription Explanation & Follow-up Agents ---
+
+const PRESCRIPTION_SYSTEM_PROMPT = `You are a clinical pharmacologist. Your job is to convert technical doctor prescriptions into plain, easy-to-understand terms for a patient.
+You will receive details of the medication (name, dosage directions, duration, and doctor's notes).
+
+You must return a JSON object with the following fields:
+- "purpose": A 1-2 sentence explanation of what the medication is and what it does in simple terms.
+- "guidelines": Step-by-step instructions on how the patient should take this medication (e.g., with food, timing, consistency).
+- "precautions": Critical safety warnings, dangerous drug/food mixtures (e.g., alcohol, grapefruit), side effects to monitor, and when to seek medical help.
+- "faqs": An array of 2-3 common questions and answers about this medication (specifically covering missed doses and stopping treatment).
+
+Do not include any explanation outside the JSON format. Use the following schema:
+{
+  "purpose": "string",
+  "guidelines": "string",
+  "precautions": "string",
+  "faqs": [
+    { "q": "string", "a": "string" }
+  ]
+}`;
+
+async function callGeminiPrescriptionAgent(medName, dosage, duration, notes) {
+  const prompt = `Medication: ${medName}
+Dosage: ${dosage}
+Duration: ${duration}
+Doctor's Notes: ${notes}`;
+
+  const requestBody = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    systemInstruction: {
+      parts: [{ text: PRESCRIPTION_SYSTEM_PROMPT }]
+    },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          purpose: { type: "STRING" },
+          guidelines: { type: "STRING" },
+          precautions: { type: "STRING" },
+          faqs: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                q: { type: "STRING" },
+                a: { type: "STRING" }
+              },
+              required: ["q", "a"]
+            }
+          }
+        },
+        required: ["purpose", "guidelines", "precautions", "faqs"]
+      }
+    }
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData?.error?.message || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return JSON.parse(rawText.trim());
+}
+
+async function callGeminiFollowupAgent(medName, dosage, duration, notes, chatHistory) {
+  const systemPrompt = `You are a warm, empathetic medical follow-up assistant. You are answering a patient's questions about their prescribed medication.
+Here are the medication details:
+- Name: ${medName}
+- Dosage: ${dosage}
+- Duration: ${duration}
+- Notes: ${notes}
+
+Your goals:
+1. Answer the patient's questions accurately, keeping it simple, clear, and reassuring.
+2. Refer to the medication's guidelines and precautions when answering.
+3. If they ask about dangerous symptoms or toxic side effects, advise them to immediately contact their doctor or seek emergency services, and do not make definitive medical diagnoses.
+4. Keep responses concise (3 sentences max).
+5. Never reveal you are an AI language model. Stay in character as the follow-up assistant.`;
+
+  // Build turns from chatHistory (excluding the initial greeting)
+  const conversationTurns = chatHistory
+    .filter((msg, idx) => idx > 0)
+    .map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+  const requestBody = {
+    contents: conversationTurns,
+    systemInstruction: {
+      parts: [{ text: systemPrompt }]
+    }
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData?.error?.message || `API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
 // --- Database & Preloaded Mock Data ---
 const DOCTORS_DB = {
   Cardiology: [
@@ -166,6 +284,7 @@ const DEFAULT_PRESCRIPTIONS = [
     dosage: '1 tablet once daily in the morning',
     duration: '30 Days',
     notes: 'For blood pressure control. Do not skip doses. Avoid eating grapefruits/drinking grapefruit juice while on this medication.',
+    status: 'active',
     explanation: {
       purpose: 'An ACE inhibitor used to treat high blood pressure and help prevent heart attacks or strokes.',
       guidelines: 'Take it at the same time each morning. Can be taken with or without food. Drink plenty of water throughout the day.',
@@ -185,6 +304,7 @@ const DEFAULT_PRESCRIPTIONS = [
     dosage: '1 capsule three times daily (morning, afternoon, bedtime)',
     duration: '14 Days',
     notes: 'For nerve pain management. May cause drowsiness. Avoid alcohol. Do not stop taking abruptly.',
+    status: 'active',
     explanation: {
       purpose: 'An anticonvulsant and analgesic medication used primarily to relieve severe nerve pain.',
       guidelines: 'Best taken at evenly spaced intervals (three times daily). Administer with food if it causes stomach upset.',
@@ -192,6 +312,44 @@ const DEFAULT_PRESCRIPTIONS = [
       faqs: [
         { q: 'Can I take Gabapentin with antacids?', a: 'No. Antacids containing aluminum or magnesium reduce Gabapentin absorption by 20%. Take them at least 2 hours apart.' },
         { q: 'What should I do if I miss a dose?', a: 'Take as soon as you remember, unless it is close to your next scheduled slot. Never take double doses.' }
+      ]
+    }
+  },
+  {
+    id: 'prsc-503',
+    patientName: 'Jane Smith',
+    doctorName: 'Dr. Evelyn Foster',
+    date: '2026-04-10',
+    medName: 'Amoxicillin 500mg',
+    dosage: '1 capsule three times daily',
+    duration: '7 Days',
+    notes: 'Complete the full course even if you feel better. Take with food.',
+    status: 'past',
+    explanation: {
+      purpose: 'A penicillin antibiotic used to treat bacterial infections like sinus or throat infections.',
+      guidelines: 'Take it at evenly spaced times of day with food. Finish all 7 days of capsules.',
+      precautions: 'May cause mild stomach upset. Inform doctor if severe rash or watery stools occur.',
+      faqs: [
+        { q: 'Can I stop if symptoms clear?', a: 'No, finishing the full prescription is crucial to completely clear the infection and prevent bacterial resistance.' }
+      ]
+    }
+  },
+  {
+    id: 'prsc-504',
+    patientName: 'David Lee',
+    doctorName: 'Dr. Arthur Pendleton',
+    date: '2026-05-15',
+    medName: 'Ibuprofen 600mg',
+    dosage: '1 tablet every 6 to 8 hours as needed',
+    duration: '5 Days',
+    notes: 'Take with food or milk to avoid stomach irritation. For back pain.',
+    status: 'past',
+    explanation: {
+      purpose: 'An NSAID (nonsteroidal anti-inflammatory drug) that reduces hormones causing pain and inflammation in the body.',
+      guidelines: 'Take only when needed for pain, maximum 3 times a day. Always take with meals or milk.',
+      precautions: 'Can cause stomach upset or ulcers if taken long-term. Do not combine with other painkillers.',
+      faqs: [
+        { q: 'Can I take this on an empty stomach?', a: 'It is highly recommended to take it with food or milk to prevent gastric discomfort.' }
       ]
     }
   }
@@ -204,14 +362,21 @@ const MOCK_OCR_DATA = {
   notes: 'For nerve pain management. May cause drowsiness. Avoid alcohol. Do not stop taking abruptly.'
 };
 
+const MOCK_DOCTORS_DB = {
+  'helen': { id: 'doc-card-1', name: 'Dr. Helen Thorne', password: 'password123', specialty: 'Cardiology', avatar: 'HT' },
+  'sarah': { id: 'doc-neur-1', name: 'Dr. Sarah Mitchell', password: 'password123', specialty: 'Neurology', avatar: 'SM' }
+};
+
 // --- App State Management ---
 // Bump this version number whenever a breaking change is made to the state shape.
 // The app will automatically clear stale localStorage so users never see broken data.
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 
 let state = {
   version: STATE_VERSION,
   currentUser: null,
+  currentDoctor: null,
+  currentPrescriptionTab: 'active',
   appointments: [],
   prescriptions: [],
   selectedAptId: null,
@@ -295,6 +460,7 @@ function quickLogin(username) {
 
 function patientLogout() {
   state.currentUser = null;
+  state.currentPrescriptionTab = 'active';
 
   // Clear patient-specific logs and recommendations DOM elements immediately on logout
   clearAgentActivityLogs();
@@ -343,6 +509,8 @@ function saveAppState() {
 function resetToDefaults() {
   state.version = STATE_VERSION;
   state.currentUser = null;
+  state.currentDoctor = null;
+  state.currentPrescriptionTab = 'active';
   state.appointments = [...DEFAULT_APPOINTMENTS];
   state.prescriptions = [...DEFAULT_PRESCRIPTIONS];
   state.selectedAptId = state.appointments[0].id;
@@ -737,19 +905,106 @@ function confirmAppointment() {
 }
 
 // --- DOCTOR PORTAL DASHBOARD LOGIC ---
+function handleDoctorLoginKeyDown(event) {
+  if (event.key === 'Enter') {
+    submitDoctorLogin();
+  }
+}
+
+function submitDoctorLogin() {
+  const usernameInput = document.getElementById('doctor-username');
+  const passwordInput = document.getElementById('doctor-password');
+  const errorMsgEl = document.getElementById('doc-login-error-msg');
+  
+  if (!usernameInput || !passwordInput || !errorMsgEl) return;
+
+  const username = usernameInput.value.trim().toLowerCase();
+  const password = passwordInput.value.trim();
+
+  errorMsgEl.style.display = 'none';
+
+  const doc = MOCK_DOCTORS_DB[username];
+  if (doc && doc.password === password) {
+    state.currentDoctor = {
+      id: doc.id,
+      name: doc.name,
+      specialty: doc.specialty,
+      avatar: doc.avatar
+    };
+    
+    // Preselect first appointment for this doctor if exists
+    const docApts = state.appointments.filter(a => a.doctorName === state.currentDoctor.name);
+    state.selectedAptId = docApts.length > 0 ? docApts[0].id : null;
+
+    saveAppState();
+    renderDoctorPortal();
+    
+    usernameInput.value = '';
+    passwordInput.value = '';
+  } else {
+    errorMsgEl.innerText = 'Invalid username or password. Try using "helen" or "sarah" with "password123".';
+    errorMsgEl.style.display = 'block';
+  }
+}
+
+function quickDoctorLogin(username) {
+  const doc = MOCK_DOCTORS_DB[username];
+  if (doc) {
+    state.currentDoctor = {
+      id: doc.id,
+      name: doc.name,
+      specialty: doc.specialty,
+      avatar: doc.avatar
+    };
+    // Preselect first appointment for this doctor if exists
+    const docApts = state.appointments.filter(a => a.doctorName === state.currentDoctor.name);
+    state.selectedAptId = docApts.length > 0 ? docApts[0].id : null;
+
+    saveAppState();
+    renderDoctorPortal();
+  }
+}
+
+function doctorLogout() {
+  state.currentDoctor = null;
+  saveAppState();
+  renderDoctorPortal();
+}
+
 function renderDoctorPortal() {
+  const loginViewEl = document.getElementById('doctor-login-view');
+  const portalContentEl = document.getElementById('doctor-portal-content');
+
+  if (!state.currentDoctor) {
+    if (loginViewEl) loginViewEl.style.display = 'flex';
+    if (portalContentEl) portalContentEl.style.display = 'none';
+    return;
+  } else {
+    if (loginViewEl) loginViewEl.style.display = 'none';
+    if (portalContentEl) portalContentEl.style.display = 'block';
+
+    // Update doctor ribbon
+    const displayNameEl = document.getElementById('doctor-display-name');
+    const avatarEl = document.getElementById('doctor-avatar-letter');
+    if (displayNameEl) displayNameEl.innerText = `${state.currentDoctor.name} (${state.currentDoctor.specialty})`;
+    if (avatarEl) avatarEl.innerText = state.currentDoctor.avatar;
+  }
+
   const queueContainer = document.getElementById('doc-appointment-queue');
   if (!queueContainer) return;
 
   queueContainer.innerHTML = '';
 
-  if (state.appointments.length === 0) {
-    queueContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">No active appointments.</div>`;
+  // Filter appointments for the logged-in doctor
+  const doctorApts = state.appointments.filter(a => a.doctorName === state.currentDoctor.name);
+
+  if (doctorApts.length === 0) {
+    queueContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">No active appointments in your queue.</div>`;
     renderSelectedPatientOverview(null);
     return;
   }
 
-  state.appointments.forEach(apt => {
+  doctorApts.forEach(apt => {
     const isSelected = apt.id === state.selectedAptId;
     const card = document.createElement('div');
     card.className = `doc-apt-card ${isSelected ? 'selected' : ''}`;
@@ -758,7 +1013,6 @@ function renderDoctorPortal() {
     card.innerHTML = `
       <div>
         <div class="apt-pat-name">${apt.patientName}</div>
-        <div class="apt-meta"><i class="fa-solid fa-user-md"></i> ${apt.doctorName}</div>
         <div class="apt-meta"><i class="fa-solid fa-clock"></i> ${apt.date} | ${apt.time}</div>
       </div>
       <div>
@@ -769,7 +1023,7 @@ function renderDoctorPortal() {
   });
 
   // Render details for current active appointment
-  const currentApt = state.appointments.find(a => a.id === state.selectedAptId) || state.appointments[0];
+  const currentApt = doctorApts.find(a => a.id === state.selectedAptId) || doctorApts[0];
   if (currentApt) {
     state.selectedAptId = currentApt.id;
     renderSelectedPatientOverview(currentApt);
@@ -807,18 +1061,41 @@ function renderSelectedPatientOverview(apt) {
     return;
   }
 
-  // Check if there is an active prescription in state for this patient appointment to show prescription notes
-  const patientPresc = state.prescriptions.filter(p => p.patientName === apt.patientName);
-  let prescHistoryHTML = '';
-  if (patientPresc.length > 0) {
-    prescHistoryHTML = `
-      <div style="margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
-        <span class="diagnostic-box-title" style="color:var(--accent-purple); font-size:0.8rem;"><i class="fa-solid fa-history"></i> Prescribed During Visit</span>
+  // Filter active and past prescriptions for this patient
+  const activeMeds = state.prescriptions.filter(p => p.patientName === apt.patientName && (p.status || 'active') === 'active');
+  const pastMeds = state.prescriptions.filter(p => p.patientName === apt.patientName && p.status === 'past');
+
+  let activeMedsHTML = '';
+  if (activeMeds.length > 0) {
+    activeMedsHTML = `
+      <div style="margin-top: 1rem;">
+        <span class="diagnostic-box-title" style="color:var(--accent-cyan); font-size:0.8rem;"><i class="fa-solid fa-pills"></i> Current Active Medications</span>
         <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem;">
-          ${patientPresc.map(p => `
+          ${activeMeds.map(p => `
             <div style="background:rgba(255,255,255,0.02); padding:0.75rem; border-radius:4px; border:1px solid var(--border-glass);">
               <div style="font-weight:700; font-size:0.9rem;">${p.medName}</div>
               <div style="font-size:0.75rem; color:var(--accent-cyan);">${p.dosage} (${p.duration})</div>
+              <div style="font-size:0.7rem; color:var(--color-text-muted); margin-top:0.25rem;">Issued by: ${p.doctorName} on ${p.date}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } else {
+    activeMedsHTML = `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:0.5rem;"><i class="fa-solid fa-info-circle"></i> No active medications on file.</div>`;
+  }
+
+  let pastMedsHTML = '';
+  if (pastMeds.length > 0) {
+    pastMedsHTML = `
+      <div style="margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+        <span class="diagnostic-box-title" style="color:var(--accent-purple); font-size:0.8rem;"><i class="fa-solid fa-history"></i> Prescription History (Past)</span>
+        <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem;">
+          ${pastMeds.map(p => `
+            <div style="background:rgba(255,255,255,0.01); padding:0.75rem; border-radius:4px; border:1px solid var(--border-glass); opacity:0.85;">
+              <div style="font-weight:700; font-size:0.9rem; color:var(--color-text-muted);">${p.medName}</div>
+              <div style="font-size:0.75rem; color:var(--color-text-muted);">${p.dosage} (${p.duration})</div>
+              <div style="font-size:0.7rem; color:var(--color-text-muted); margin-top:0.25rem;">Issued by: ${p.doctorName} on ${p.date}</div>
             </div>
           `).join('')}
         </div>
@@ -827,7 +1104,7 @@ function renderSelectedPatientOverview(apt) {
   }
 
   container.innerHTML = `
-    <div class="diag-details">
+    <div class="diag-details" style="max-height: 520px; overflow-y: auto; padding-right: 0.5rem;">
       <!-- Diagnostic Metadata Strip -->
       <div class="diag-meta-strip">
         <div class="diag-meta-item">Patient: <strong>${apt.patientName}</strong></div>
@@ -903,7 +1180,12 @@ function renderSelectedPatientOverview(apt) {
           <i class="fa-solid fa-file-signature"></i> Upload Prescription
         </button>
 
-        ${prescHistoryHTML}
+        <!-- Patient Clinical Summary of Medications -->
+        <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-glass); padding-top: 1.25rem;">
+          <h4 style="font-size: 0.95rem; font-weight:700; margin-bottom:0.75rem;"><i class="fa-solid fa-folder-medical"></i> Patient Medication Profile</h4>
+          ${activeMedsHTML}
+          ${pastMedsHTML}
+        </div>
       </div>
     </div>
   `;
@@ -933,7 +1215,7 @@ function simulateOCRScan() {
 }
 
 // Doctor submits new prescription
-function submitDoctorPrescription() {
+async function submitDoctorPrescription() {
   const apt = state.appointments.find(a => a.id === state.selectedAptId);
   if (!apt) return;
 
@@ -947,8 +1229,27 @@ function submitDoctorPrescription() {
     return;
   }
 
-  // Generate automated AI explanations mimicking Clinical Pharmacologist Agent
-  const aiExplanation = generateAIExplanationForMed(medNameVal, notesVal);
+  // Get the submit button element
+  const submitBtn = document.querySelector('.submit-presc-btn');
+  let originalBtnHTML = '';
+  if (submitBtn) {
+    originalBtnHTML = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating AI Explanations...`;
+  }
+
+  let aiExplanation;
+  try {
+    aiExplanation = await callGeminiPrescriptionAgent(medNameVal, dosageVal, durationVal, notesVal);
+  } catch (error) {
+    console.error('Error generating AI explanation via Gemini API, falling back to mock generator:', error);
+    aiExplanation = generateAIExplanationForMed(medNameVal, notesVal);
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalBtnHTML;
+  }
 
   const newPrsc = {
     id: 'prsc-' + Math.floor(500 + Math.random() * 500),
@@ -959,6 +1260,7 @@ function submitDoctorPrescription() {
     dosage: dosageVal,
     duration: durationVal || 'As directed',
     notes: notesVal || 'Take as directed.',
+    status: 'active',
     explanation: aiExplanation,
     isNewForPatient: true // flag to show notification tag in Patient portal
   };
@@ -1081,11 +1383,29 @@ function renderPatientPortal() {
 
   medsContainer.innerHTML = '';
 
-  // Filter prescriptions for the Patient
-  const patientMeds = state.prescriptions.filter(p => p.patientName === state.currentUser);
+  // Update Tab highlights
+  const activeTabBtn = document.getElementById('med-tab-active');
+  const pastTabBtn = document.getElementById('med-tab-past');
+  const currentTab = state.currentPrescriptionTab || 'active';
+
+  if (activeTabBtn && pastTabBtn) {
+    if (currentTab === 'active') {
+      activeTabBtn.classList.add('active');
+      pastTabBtn.classList.remove('active');
+    } else {
+      activeTabBtn.classList.remove('active');
+      pastTabBtn.classList.add('active');
+    }
+  }
+
+  // Filter prescriptions for the Patient & current tab status
+  const patientMeds = state.prescriptions.filter(
+    p => p.patientName === state.currentUser && (p.status || 'active') === currentTab
+  );
 
   if (patientMeds.length === 0) {
-    medsContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">No prescriptions on file yet.</div>`;
+    const noMedsMsg = currentTab === 'active' ? 'No active prescriptions.' : 'No past prescriptions.';
+    medsContainer.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--color-text-muted);">${noMedsMsg}</div>`;
     renderPrescriptionExplanationPanel(null);
     return;
   }
@@ -1094,13 +1414,29 @@ function renderPatientPortal() {
     const isNew = med.isNewForPatient ? 'new-alert' : '';
     const card = document.createElement('div');
     card.className = `med-card ${isNew}`;
+    
+    let actionsHTML = `
+      <div class="med-card-actions">
+        <button class="explain-ai-btn" onclick="selectPrescriptionForAI('${med.id}')">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Explain with AI
+        </button>
+    `;
+
+    if (currentTab === 'active') {
+      actionsHTML += `
+        <button class="archive-presc-btn" onclick="archivePrescription('${med.id}')">
+          <i class="fa-solid fa-box-archive"></i> Archive to History
+        </button>
+      `;
+    }
+    
+    actionsHTML += `</div>`;
+
     card.innerHTML = `
       <h4>${med.medName}</h4>
       <div class="med-dosage"><i class="fa-solid fa-pills"></i> ${med.dosage}</div>
       <div class="med-instructions">Duration: ${med.duration} | Issued by: ${med.doctorName}</div>
-      <button class="explain-ai-btn" onclick="selectPrescriptionForAI('${med.id}')">
-        <i class="fa-solid fa-wand-magic-sparkles"></i> Explain with AI
-      </button>
+      ${actionsHTML}
     `;
     medsContainer.appendChild(card);
   });
@@ -1125,6 +1461,27 @@ function selectPrescriptionForAI(id) {
 
   saveAppState();
   renderPatientPortal();
+}
+
+function switchPrescriptionTab(tabName) {
+  state.currentPrescriptionTab = tabName;
+  saveAppState();
+  renderPatientPortal();
+}
+
+function archivePrescription(prescId) {
+  const med = state.prescriptions.find(p => p.id === prescId);
+  if (med) {
+    med.status = 'past';
+    // If this is the active interpreter, update it to the first available active medication
+    if (state.activePrescIdInterpreter === prescId) {
+      const remainingActive = state.prescriptions.filter(p => p.patientName === state.currentUser && (p.status || 'active') === 'active');
+      state.activePrescIdInterpreter = remainingActive.length > 0 ? remainingActive[0].id : null;
+    }
+    saveAppState();
+    renderPatientPortal();
+    alert(`${med.medName} has been archived to your prescription history.`);
+  }
 }
 
 function renderPrescriptionExplanationPanel(med) {
@@ -1208,7 +1565,7 @@ function handleFollowupKeyDown(event, medId) {
     sendFollowupMessage(medId);
   }
 }
-function sendFollowupMessage(medId) {
+async function sendFollowupMessage(medId) {
   const inputEl = document.getElementById('follow-up-input');
   if (!inputEl) return;
 
@@ -1219,17 +1576,59 @@ function sendFollowupMessage(medId) {
   state.followupChatHistory[medId].push({ sender: 'user', text: text });
   inputEl.value = '';
 
-  // Re-render chat area partially
-  renderPrescriptionExplanationPanel(state.prescriptions.find(p => p.id === medId));
+  const med = state.prescriptions.find(p => p.id === medId);
 
-  // Simulate Follow-up agent processing
-  setTimeout(() => {
-    const med = state.prescriptions.find(p => p.id === medId);
+  // Show typing indicator in the follow-up messages box
+  const chatBox = document.getElementById('follow-up-messages-box');
+  if (chatBox) {
+    // Re-render the panel first to show the user's message
+    renderPrescriptionExplanationPanel(med);
+    
+    // Append a typing bubble
+    const typingBubble = document.createElement('div');
+    typingBubble.id = 'followup-typing-bubble';
+    typingBubble.className = 'message ai';
+    typingBubble.innerHTML = `
+      <span class="message-sender">Follow-up Agent</span>
+      <div style="display: flex; gap: 4px; padding: 4px 0;">
+        <span class="status-dot" style="animation-delay: 0.1s;"></span>
+        <span class="status-dot" style="animation-delay: 0.2s;"></span>
+        <span class="status-dot" style="animation-delay: 0.3s;"></span>
+      </div>
+    `;
+    chatBox.appendChild(typingBubble);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  try {
+    // Call Gemini API
+    const reply = await callGeminiFollowupAgent(
+      med.medName,
+      med.dosage,
+      med.duration,
+      med.notes,
+      state.followupChatHistory[medId]
+    );
+
+    // Remove typing bubble
+    const bubble = document.getElementById('followup-typing-bubble');
+    if (bubble) bubble.remove();
+
+    state.followupChatHistory[medId].push({ sender: 'ai', text: reply });
+    saveAppState();
+    renderPrescriptionExplanationPanel(med);
+
+  } catch (error) {
+    console.error('Error in follow-up agent:', error);
+    
+    // Remove typing bubble
+    const bubble = document.getElementById('followup-typing-bubble');
+    if (bubble) bubble.remove();
+
+    // Offline fallback simulation
     let reply = `Checking details for ${med.medName}... Make sure to keep consistent timetables. If you experience severe symptoms, report immediately to Dr. ${med.doctorName}.`;
 
-    // Dynamic answers checking
     const userQuery = text.toLowerCase();
-
     if (userQuery.includes('miss') || userQuery.includes('forget') || userQuery.includes('skipped')) {
       const customFAQ = med.explanation.faqs ? med.explanation.faqs.find(f => f.q.toLowerCase().includes('miss')) : null;
       reply = customFAQ ? customFAQ.a : "If you miss a dose, take it as soon as you remember. However, if it is nearly time for your next capsule, skip it and continue your normal schedule. Never double dose.";
@@ -1248,10 +1647,8 @@ function sendFollowupMessage(medId) {
 
     state.followupChatHistory[medId].push({ sender: 'ai', text: reply });
     saveAppState();
-
-    // Refresh Panel
     renderPrescriptionExplanationPanel(med);
-  }, 1200);
+  }
 }
 
 // --- APP INITIALISATION ---

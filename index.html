@@ -236,8 +236,12 @@
           <div class="prescription-view-split">
             <!-- Sub-column 1: Active Prescriptions -->
             <div class="glass-panel">
-              <div class="panel-header">
-                <span class="panel-title"><i class="fa-solid fa-file-prescription"></i> Your Active Prescriptions</span>
+              <div class="panel-header" style="flex-direction: column; align-items: flex-start; gap: 0.75rem;">
+                <span class="panel-title"><i class="fa-solid fa-file-prescription"></i> Prescriptions & Meds</span>
+                <div class="med-tabs">
+                  <button id="med-tab-active" class="med-tab-btn active" onclick="switchPrescriptionTab('active')">Active</button>
+                  <button id="med-tab-past" class="med-tab-btn" onclick="switchPrescriptionTab('past')">History</button>
+                </div>
               </div>
               <div class="meds-list" id="patient-meds-list">
                 <!-- Injected dynamically -->
@@ -263,37 +267,91 @@
 
       <!-- VIEW: DOCTOR PORTAL -->
       <section id="view-doctor" class="view-section">
-        <div class="portal-layout">
-          <!-- Column 1: Appointment Queue -->
-          <div class="glass-panel">
-            <div class="panel-header">
-              <span class="panel-title"><i class="fa-solid fa-list-check"></i> Patient Appointment Queue</span>
-              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Appointment Scheduling Agent</span>
-            </div>
-            <div class="appointment-list" id="doc-appointment-queue">
-              <!-- Injected dynamically -->
-            </div>
-          </div>
-
-          <!-- Column 2: Detailed Overview & Treatment -->
-          <div class="glass-panel" style="position: relative;">
-            <!-- Simulating Scanner Overlay -->
-            <div class="ocr-scan-overlay" id="ocr-overlay">
-              <div class="scan-box">
-                <div class="scan-line"></div>
+        
+        <!-- Doctor Login Card -->
+        <div id="doctor-login-view" class="login-container">
+          <div class="login-card">
+            <h2 class="login-title" style="background: var(--gradient-accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Doctor Portal Access</h2>
+            <p class="login-subtitle">Sign in to manage clinical consults and issue smart prescriptions.</p>
+            
+            <div id="doc-login-error-msg" class="login-error"></div>
+            
+            <div class="login-form">
+              <div class="login-form-group">
+                <label for="doctor-username">Username</label>
+                <input type="text" id="doctor-username" class="login-input" placeholder="e.g. helen" onkeydown="handleDoctorLoginKeyDown(event)">
               </div>
-              <div class="ocr-text">SCANNING PRESCRIPTION IMAGE VIA OCR...</div>
-            </div>
-
-            <div class="panel-header">
-              <span class="panel-title"><i class="fa-solid fa-address-card"></i> Selected Patient Overview</span>
-              <span style="font-size: 0.8rem; color: var(--color-text-muted);">Patient Diagnostic Panel</span>
+              
+              <div class="login-form-group">
+                <label for="doctor-password">Password</label>
+                <input type="password" id="doctor-password" class="login-input" placeholder="••••••••" onkeydown="handleDoctorLoginKeyDown(event)">
+              </div>
+              
+              <button class="login-submit-btn" style="background: var(--gradient-accent);" onclick="submitDoctorLogin()">Sign In</button>
             </div>
             
-            <div id="patient-overview-content" style="height: 100%;">
-              <div class="diag-empty">
-                <i class="fa-solid fa-folder-open"></i>
-                <p>Select a patient from the queue on the left to view symptom reports and prescribe medications.</p>
+            <div class="login-quick-options">
+              <h4>Quick Sign In (Prototyping)</h4>
+              <div class="quick-user-buttons">
+                <button class="quick-user-btn" onclick="quickDoctorLogin('helen')">
+                  <i class="fa-solid fa-user-doctor" style="color: var(--accent-purple);"></i> Dr. Thorne
+                </button>
+                <button class="quick-user-btn" onclick="quickDoctorLogin('sarah')">
+                  <i class="fa-solid fa-user-doctor" style="color: var(--accent-purple);"></i> Dr. Mitchell
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Doctor Portal Dashboard (Hidden until logged in) -->
+        <div id="doctor-portal-content" style="display: none;">
+          <!-- Active Doctor Profile Ribbon -->
+          <div class="doctor-profile-header">
+            <div class="doctor-profile-info">
+              <div class="doctor-profile-avatar" id="doctor-avatar-letter">HT</div>
+              <div>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted); display: block; line-height: 1.2;">Clinician Profile</span>
+                <strong id="doctor-display-name" style="font-size: 1.05rem; color: #fff;">Dr. Helen Thorne (Cardiology)</strong>
+              </div>
+            </div>
+            <button class="doctor-logout-btn" onclick="doctorLogout()">
+              <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+            </button>
+          </div>
+
+          <div class="portal-layout">
+            <!-- Column 1: Appointment Queue -->
+            <div class="glass-panel">
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-list-check"></i> Patient Appointment Queue</span>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Appointment Scheduling Agent</span>
+              </div>
+              <div class="appointment-list" id="doc-appointment-queue">
+                <!-- Injected dynamically -->
+              </div>
+            </div>
+
+            <!-- Column 2: Detailed Overview & Treatment -->
+            <div class="glass-panel" style="position: relative;">
+              <!-- Simulating Scanner Overlay -->
+              <div class="ocr-scan-overlay" id="ocr-overlay">
+                <div class="scan-box">
+                  <div class="scan-line"></div>
+                </div>
+                <div class="ocr-text">SCANNING PRESCRIPTION IMAGE VIA OCR...</div>
+              </div>
+
+              <div class="panel-header">
+                <span class="panel-title"><i class="fa-solid fa-address-card"></i> Selected Patient Overview</span>
+                <span style="font-size: 0.8rem; color: var(--color-text-muted);">Patient Diagnostic Panel</span>
+              </div>
+              
+              <div id="patient-overview-content" style="height: 100%;">
+                <div class="diag-empty">
+                  <i class="fa-solid fa-folder-open"></i>
+                  <p>Select a patient from the queue on the left to view symptom reports and prescribe medications.</p>
+                </div>
               </div>
             </div>
           </div>
