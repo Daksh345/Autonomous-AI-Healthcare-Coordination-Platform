@@ -1,5 +1,5 @@
 // --- Gemini API Configuration ---
-const GEMINI_API_KEY = 'AQ.Ab8RN6LUx8N69vO0RmcyKC6S9oDsKCHWmxZNHhIkpm3WDnT7Ug';
+const GEMINI_API_KEY = 'AQ.Ab8RN6K0IxWsko64yGXSGt1xFXlNtjwvm_gro24WTmLQqSzOrA';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const INTAKE_SYSTEM_PROMPT = `You are an AI-powered Symptom Intake Nurse for MediFlow AI, a healthcare coordination platform.
