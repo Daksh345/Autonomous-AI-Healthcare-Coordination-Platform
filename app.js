@@ -1,6 +1,47 @@
 // --- Gemini API Configuration ---
-const GEMINI_API_KEY = 'AQ.Ab8RN6LUx8N69vO0RmcyKC6S9oDsKCHWmxZNHhIkpm3WDnT7Ug';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+// Retrieve API key from localStorage. Stored securely inside the browser client.
+let GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY') || '';
+
+function getGeminiApiUrl() {
+  const key = localStorage.getItem('GEMINI_API_KEY') || GEMINI_API_KEY || '';
+  return `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`;
+}
+
+// Function to prompt/configure API Key from the UI
+function configureApiKey() {
+  const currentKey = localStorage.getItem('GEMINI_API_KEY') || '';
+  const userKey = prompt("Enter your Google Gemini API Key. (Your key is saved locally in your browser and is never uploaded to any server):", currentKey);
+  
+  if (userKey !== null) {
+    const trimmedKey = userKey.trim();
+    if (trimmedKey) {
+      localStorage.setItem('GEMINI_API_KEY', trimmedKey);
+      GEMINI_API_KEY = trimmedKey;
+      alert("API Key saved successfully! The app will reload to apply changes.");
+      window.location.reload();
+    } else {
+      localStorage.removeItem('GEMINI_API_KEY');
+      GEMINI_API_KEY = '';
+      alert("API Key removed. Real-time agent calls will prompt you for a key.");
+    }
+  }
+}
+
+// Helper function to check/ensure API key exists before making requests
+function ensureApiKey() {
+  if (!localStorage.getItem('GEMINI_API_KEY') && !GEMINI_API_KEY) {
+    const key = prompt("A Gemini API Key is required to run real-time AI agents. Please enter your key (this will be stored locally in your browser):");
+    if (key && key.trim()) {
+      const trimmedKey = key.trim();
+      localStorage.setItem('GEMINI_API_KEY', trimmedKey);
+      GEMINI_API_KEY = trimmedKey;
+      return true;
+    }
+    return false;
+  }
+  return true;
+}
+
 
 const INTAKE_SYSTEM_PROMPT = `You are an AI-powered Symptom Intake Nurse for MediFlow AI, a healthcare coordination platform.
 Your role is to gently and professionally gather a patient's medical symptom information through a natural conversation.
@@ -68,7 +109,11 @@ async function callGeminiIntakeAgent(chatHistory) {
     }
   };
 
-  const response = await fetch(GEMINI_API_URL, {
+  if (!ensureApiKey()) {
+    throw new Error("Gemini API Key is missing. Please configure your API key in the top right header.");
+  }
+
+  const response = await fetch(getGeminiApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)
@@ -140,7 +185,11 @@ Doctor's Notes: ${notes}`;
     }
   };
 
-  const response = await fetch(GEMINI_API_URL, {
+  if (!ensureApiKey()) {
+    throw new Error("Gemini API Key is missing. Please configure your API key in the top right header.");
+  }
+
+  const response = await fetch(getGeminiApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)
@@ -186,7 +235,11 @@ Your goals:
     }
   };
 
-  const response = await fetch(GEMINI_API_URL, {
+  if (!ensureApiKey()) {
+    throw new Error("Gemini API Key is missing. Please configure your API key in the top right header.");
+  }
+
+  const response = await fetch(getGeminiApiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)

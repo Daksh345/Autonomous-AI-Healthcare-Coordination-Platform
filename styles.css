@@ -1540,6 +1540,25 @@ footer {
   background: var(--bg-glass);
 }
 
+/* API Key Config Button */
+.api-key-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glass);
+  color: var(--color-text-muted);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.api-key-btn:hover {
+  background: rgba(0, 242, 254, 0.1);
+  color: var(--accent-cyan);
+  border-color: var(--border-glow);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
 /* Reset / State Utility */
 .reset-state-btn {
   background: rgba(255, 255, 255, 0.04);
