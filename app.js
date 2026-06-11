@@ -1,5 +1,5 @@
 // --- Gemini API Configuration ---
-const GEMINI_API_KEY = 'AQ.Ab8RN6K0IxWsko64yGXSGt1xFXlNtjwvm_gro24WTmLQqSzOrA';
+const GEMINI_API_KEY = 'AQ.Ab8RN6LUx8N69vO0RmcyKC6S9oDsKCHWmxZNHhIkpm3WDnT7Ug';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const INTAKE_SYSTEM_PROMPT = `You are an AI-powered Symptom Intake Nurse for MediFlow AI, a healthcare coordination platform.
@@ -52,14 +52,14 @@ async function callGeminiIntakeAgent(chatHistory) {
         properties: {
           done: { type: "BOOLEAN", description: "Set to true when symptoms, duration, and severity are gathered." },
           reply: { type: "STRING", description: "Your conversational response to the patient." },
-          specialty: { 
-            type: "STRING", 
+          specialty: {
+            type: "STRING",
             enum: [
-              "Cardiology", "Neurology", "Orthopedics", "Dermatology", "Pediatrics", 
-              "Psychiatry", "Ophthalmology", "Gastroenterology", "Endocrinology", "ENT", 
+              "Cardiology", "Neurology", "Orthopedics", "Dermatology", "Pediatrics",
+              "Psychiatry", "Ophthalmology", "Gastroenterology", "Endocrinology", "ENT",
               "General Medicine"
-            ], 
-            description: "Recommended medical specialty." 
+            ],
+            description: "Recommended medical specialty."
           },
           summary: { type: "STRING", description: "A 1-2 sentence clinical intake summary of the patient's symptoms, duration, and severity." }
         },
@@ -414,7 +414,7 @@ function submitPatientLogin() {
   const usernameInput = document.getElementById('patient-username');
   const passwordInput = document.getElementById('patient-password');
   const errorMsgEl = document.getElementById('login-error-msg');
-  
+
   if (!usernameInput || !passwordInput || !errorMsgEl) return;
 
   const username = usernameInput.value.trim().toLowerCase();
@@ -431,10 +431,10 @@ function submitPatientLogin() {
     } else {
       state.activePrescIdInterpreter = null;
     }
-    
+
     saveAppState();
     renderPatientPortal();
-    
+
     usernameInput.value = '';
     passwordInput.value = '';
   } else {
@@ -671,7 +671,7 @@ async function processIntakeResponse(text) {
   try {
     // Call Gemini API
     const responseText = await callGeminiIntakeAgent(getCurrentPatientState().chatHistory);
-    
+
     // Remove typing bubble
     const bubble = document.getElementById('chat-typing-bubble');
     if (bubble) bubble.remove();
@@ -688,7 +688,7 @@ async function processIntakeResponse(text) {
       saveAppState();
     } else {
       logAgentActivity('Symptom Analysis Agent', 'Intake log compiled successfully.', 'success');
-      
+
       const specialty = result.specialty || 'General Medicine';
       const summary = result.summary || 'Symptoms collected.';
 
@@ -1583,7 +1583,7 @@ async function sendFollowupMessage(medId) {
   if (chatBox) {
     // Re-render the panel first to show the user's message
     renderPrescriptionExplanationPanel(med);
-    
+
     // Append a typing bubble
     const typingBubble = document.createElement('div');
     typingBubble.id = 'followup-typing-bubble';
@@ -1620,7 +1620,7 @@ async function sendFollowupMessage(medId) {
 
   } catch (error) {
     console.error('Error in follow-up agent:', error);
-    
+
     // Remove typing bubble
     const bubble = document.getElementById('followup-typing-bubble');
     if (bubble) bubble.remove();
